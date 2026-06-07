@@ -304,9 +304,7 @@ if st.button("Calculate"):
                         lvl = int(ench.get("@enchantmentlevel", 0)) 
                         ench_output = f"{u_name}@{lvl}" 
                         base_name = name_lookup.get(u_name, u_name) 
-                        tier_match_ench = re.match(r"T([1-8])_", u_name) 
-                        tier_str = tier_match_ench.group(1) if tier_match_ench else "0" 
-                        name_map[ench_output] = f"{base_name} {tier_str}.{lvl}" 
+                        name_map[ench_output] = base_name
                         for c in to_list(ench.get("craftingrequirements")): 
                             if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
 
