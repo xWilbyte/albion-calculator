@@ -13,10 +13,10 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Reduce top padding to pull title and config up */
+    /* Remove padding to pull sections to the top */
     [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
-    [data-testid="stSidebarContent"] { padding-top: 1rem; }
-
+    [data-testid="stSidebarContent"] { padding-top: 0px !important; }
+    
     /* Force header and cell alignment */
     [data-testid="stDataFrame"] [role="columnheader"], 
     [data-testid="stDataFrame"] [role="gridcell"] {
@@ -50,20 +50,21 @@ if 'market_data' not in st.session_state:
     st.session_state.market_data = {} 
 
 # ================= SIDEBAR INPUTS ================= 
-st.sidebar.header("Config") 
+# Using markdown instead of st.sidebar.header to avoid default header margins
+st.sidebar.markdown("## Config") 
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower()  
 CRAFT_CITIES = st.sidebar.multiselect("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"], default=["Bridgewatch"]) 
 STATION_COST = st.sidebar.number_input("Station Cost", value=500) 
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Volume (24h)", value=100) 
 MIN_MARGIN = st.sidebar.number_input("Min Profit Margin %", value=10.0, step=1.0) 
 
-st.sidebar.header("Focus Settings") 
+st.sidebar.markdown("## Focus Settings") 
 USE_FOCUS = st.sidebar.checkbox("Use Focus", value=False) 
 FOCUS_EFFICIENCY = st.sidebar.number_input("Focus Efficiency Level", value=10000) 
 BASE_RETURN_RATE = 0.152 
 FOCUS_RETURN_RATE = 0.435 
 
-st.sidebar.header("Filters") 
+st.sidebar.markdown("## Filters") 
 ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72) 
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
