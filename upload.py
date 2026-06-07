@@ -322,8 +322,9 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Standardized to ItemName@Level format for API compatibility
-                    ench_output = f"{u_name}@{lvl}"
+                    # Refined resources need _LEVEL prefix for API fetch
+                    is_refined = subcat == "refinedresources"
+                    ench_output = f"{u_name}_LEVEL{lvl}@{lvl}" if is_refined else f"{u_name}@{lvl}"
                     
                     base_name = name_lookup.get(u_name, u_name) 
                     name_map[ench_output] = f"{base_name} .{lvl}"
