@@ -17,7 +17,7 @@ CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["potion", "food"])
 CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market"])
 STATION_COST = st.sidebar.number_input("Station Cost", value=500)
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Daily Volume", value=100)
-MIN_MARGIN = st.sidebar.number_input("Min Margin %", value=10.0)
+MIN_MARGIN = st.sidebar.number_input("Min Margin %", value=10.0, step=1.0)
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0)
 
 st.sidebar.header("Focus Settings")
@@ -27,9 +27,8 @@ BASE_RETURN_RATE = 0.152
 FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.header("Filters")
-ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [3, 4, 5, 6], default=[3, 4, 5, 6])
+ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [3, 4, 5, 6, 7, 8], default=[3, 4, 5, 6, 7, 8])
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 168, 72)
-SHOW_NEGATIVE = st.sidebar.checkbox("Show Negative Profit", value=False)
 
 # ================= CONSTANTS & RATE LIMITER =================
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/"
@@ -139,8 +138,8 @@ def process_recipe(r, name_map, market_data):
     profit = gross_rev - total_cost
     pct = (profit / total_cost * 100) if total_cost > 0 else 0
     
+    # Filter by margin (can now include negative values)
     if pct < MIN_MARGIN or pct > IGNORE_MARGIN: return None
-    if not SHOW_NEGATIVE and profit < 0: return None
     if out_data.get('volume', 0) < MIN_DAILY_VOLUME: return None
 
     focus_cost = int((r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) * r.get("yield", 1))
@@ -217,11 +216,10 @@ if st.button("Calculate"):
         else:
             df = df.sort_values(by="S/F", ascending=False)
             
-        # Display with new Formatting
         st.dataframe(
             df, 
             width='stretch', 
-            height=800, # This forces the table to be tall
+            height=800,
             column_config={
                 "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
                 "Price": st.column_config.NumberColumn("Price", format="%,d"),
