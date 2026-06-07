@@ -11,14 +11,24 @@ from concurrent.futures import ThreadPoolExecutor
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
 
-# CSS to center align text in Dataframes 
+# CSS to improve layout, button size, and alignment 
 st.markdown(""" 
     <style> 
+    /* Center align table content */
     div[data-testid="stDataFrame"] { 
         text-align: center !important; 
     } 
     th, td { 
         text-align: center !important; 
+    } 
+    /* Style the Calculate button to be large and prominent */
+    div.stButton > button { 
+        width: 100%; 
+        height: 50px; 
+        font-weight: bold; 
+        font-size: 18px; 
+        background-color: #f63366; 
+        color: white; 
     } 
     </style> 
     """, unsafe_allow_html=True) 
@@ -206,7 +216,9 @@ def process_recipe(r, name_map, market_data):
     return best_result 
 
 # ================= MAIN ================= 
-st.title("Albion Crafting Profit Calculator") 
+# Improved Header Layout 
+st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
+st.divider() 
 
 if st.button("Calculate"): 
     if not CRAFT_CITIES: 
