@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 # ================= PAGE CONFIG & STYLING =================
 st.set_page_config(layout="wide", page_title="Albion Crafting Profit Calculator")
 
-# CSS to center align text in Dataframes
 st.markdown("""
     <style>
     div[data-testid="stDataFrame"] {
