@@ -19,7 +19,9 @@ RRR_BONUS_MAP = {
 
 def get_rrr(city, category, use_focus):
     """
-    Calculates Resource Return Rate based on city bonuses and focus usage.
+    Calculates Resource Return Rate. 
+    Food/Potions do not have city-specific bonuses (they are non-bonus).
+    Refining uses the map to check for city bonuses.
     """
     bonus_city = RRR_BONUS_MAP.get(category.lower()) if category else None
     is_bonus_city = (city == bonus_city)
@@ -47,6 +49,7 @@ def reset_defaults():
     st.session_state['show_vol'] = True
     st.session_state['show_avg_price'] = False
     st.session_state['show_profit'] = False
+    st.session_state['show_rrr'] = False
 
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
@@ -111,8 +114,6 @@ with st.sidebar.expander("General Settings", expanded=True):
 with st.sidebar.expander("Focus Settings"):
     USE_FOCUS = st.checkbox("Use Focus", value=False, key="use_focus") 
     FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000, key="focus_eff") 
-    BASE_RETURN_RATE = 0.152 
-    FOCUS_RETURN_RATE = 0.435 
 
 with st.sidebar.expander("Filters"):
     ALLOWED_TIERS = st.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8], key="allowed_tiers") 
@@ -125,6 +126,7 @@ with st.sidebar.expander("Display Options"):
     SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True, key="show_vol") 
     SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False, key="show_avg_price") 
     SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
+    SHOW_RRR = st.checkbox("Show Return Rate", value=False, key="show_rrr")
 
 st.sidebar.button("Restore Default Settings", on_click=reset_defaults, use_container_width=True)
 
@@ -152,23 +154,14 @@ limiter = RateLimiter(1/150)
 # ================= UTILS ================= 
 
 def normalize_id(id_str, category="refine"):
-    """
-    Transforms _LEVEL# into the correct API format based on category.
-    Refining uses _LEVEL#@# (e.g., T4_PLANKS_LEVEL4@4)
-    Food/Potions use @# (e.g., T2_MEAL_SALAD@1)
-    """
     if not id_str: return id_str
     if "@" in id_str: return id_str
-    
     if category == "refine" or category == "rock":
-        # Keep existing logic for refining
         return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
     else:
-        # Update for food/potions
         return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_base_name(id_str):
-    """Removes suffix for name lookup."""
     return re.sub(r"(@\d+|(_LEVEL\d+(@\d+)?))", "", id_str)
 
 def to_list(x): 
@@ -254,13 +247,10 @@ def process_recipe(r, name_map, market_data):
 
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
-            # Dynamic Return Rate Calculation
+            # Dynamic Return Rate Calculation based on Category (Refining vs Food/Potions)
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS)
             
-            # --- ID HANDLING ---
-            # Potions/Food use standard IDs, Stone/Refining uses specific base names
             out_key = r['output']
-            
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
             revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
             out_hours = get_hours_ago(out_data.get('date', 'N/A')) 
@@ -290,11 +280,9 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 
-                # --- UI DISPLAY LOGIC (SEPARATED) ---
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
                 
-                # Apply the Stone enchantment display tweak ONLY for refining/rock
                 if r.get("category") == "rock":
                     input_ench = 0
                     for inp in r['inputs']:
@@ -308,7 +296,8 @@ def process_recipe(r, name_map, market_data):
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
-                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
+                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
+                    "Return Rate": f"{current_return:.1%}"
                 } 
     return best_result 
 
@@ -331,22 +320,14 @@ if st.button("Click to Calculate", use_container_width=True):
             if isinstance(name_data, list): 
                 for item in name_data: 
                     if item is None or not isinstance(item, dict): continue 
-                    
                     loc_names = item.get("LocalizedNames") 
                     en_name = loc_names.get("EN-US") if isinstance(loc_names, dict) else None
-                    
-                    # 1. Map by UniqueName directly (Most reliable approach)
                     unique_name = item.get("UniqueName")
-                    if unique_name and en_name:
-                        name_lookup[unique_name] = en_name
-                        
-                    # 2. Fallback to LocalizationNameVariable just in case
+                    if unique_name and en_name: name_lookup[unique_name] = en_name
                     var_name = item.get("LocalizationNameVariable") 
                     if var_name and isinstance(var_name, str) and en_name: 
                         key = var_name.replace("@ITEMS_", "").replace("@", "") 
-                        if key not in name_lookup:
-                            name_lookup[key] = en_name
-                            
+                        if key not in name_lookup: name_lookup[key] = en_name
     except Exception as e: 
         st.error(f"Error loading JSON: {e}") 
         st.stop() 
@@ -360,22 +341,12 @@ if st.button("Click to Calculate", use_container_width=True):
             if not isinstance(item, dict): continue 
             u_name = item.get("@uniquename") 
             if not u_name: continue 
-            
-            # --- Grab display names BEFORE checking if it's a valid recipe match ---
             base_n = get_base_name(u_name)
-            if base_n not in name_map:
-                name_map[base_n] = name_lookup.get(base_n, u_name)
+            if base_n not in name_map: name_map[base_n] = name_lookup.get(base_n, u_name)
             
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
-
-            is_match = False
-            if CRAFT_TYPE == "refine":
-                if subcat == "refinedresources":
-                    is_match = True
-            elif cat_tag == CRAFT_TYPE:
-                is_match = True
-            
+            is_match = (subcat == "refinedresources") if CRAFT_TYPE == "refine" else (cat_tag == CRAFT_TYPE)
             if not is_match: continue
             
             tier_match = re.match(r"T([1-8])_", u_name) 
@@ -386,34 +357,21 @@ if st.button("Click to Calculate", use_container_width=True):
             
             def add_recipe(c, output, val, category): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
-                
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
-                        if "FACTION" in get_id(r, category).upper():
-                            return 
+                        if "FACTION" in get_id(r, category).upper(): return 
 
                 inputs = [{"id": get_id(r, category), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r, category)] 
-                
                 if inputs: 
-                    recipes.append({
-                        "output": normalize_id(output, category), 
-                        "category": category, 
-                        "inputs": inputs, 
-                        "silver_cost": int(c.get("@silver", 0)), 
-                        "yield": int(c.get("@amountcrafted", 1)), 
-                        "focus_cost": int(c.get("@craftingfocus", 0)), 
-                        "item_value": val
-                    }) 
+                    recipes.append({"output": normalize_id(output, category), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
 
             for c in reqs: 
                 if c: add_recipe(c, u_name, base_val, cat_tag) 
-                
             enchant = item.get("enchantments") 
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
                     ench_output = f"{u_name}_LEVEL{lvl}" 
-                    
                     for c in to_list(ench.get("craftingrequirements")): 
                         if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag) 
 
@@ -442,6 +400,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_VOL: cols.append("Vol Sold (24h)")
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
+    if SHOW_RRR: cols.append("Return Rate") # Added column here
     
     display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
@@ -462,6 +421,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
+        "Return Rate": st.column_config.TextColumn("Return Rate", alignment="center"),
     }
     
     num_rows = len(display_df)
