@@ -21,27 +21,23 @@ RRR_BONUS_MAP = {
 
 def get_rrr(city, category, use_focus, is_refining):
     """
-    Calculates Resource Return Rate with corrected differentiation
-    between Refining and standard Crafting.
+    Calculates Resource Return Rate.
     """
     category_key = category.lower() if category else ""
     bonus_city = RRR_BONUS_MAP.get(category_key)
     is_bonus_city = (city == bonus_city)
     
     if is_refining:
-        # Refining Logic
         if use_focus:
             return 0.539 if is_bonus_city else 0.435
         else:
             return 0.367 if is_bonus_city else 0.153
     else:
-        # Crafting Logic (Items/Food/Potions)
         if use_focus:
-            # 47.9% with Focus + Bonus, 43.5% without Bonus (or standard)
             return 0.479 if is_bonus_city else 0.435
         else:
-            # Standard base rates
-            return 0.280 if is_bonus_city else 0.153
+            # Corrected: 24.8% for Crafting + Bonus (No Focus)
+            return 0.248 if is_bonus_city else 0.153
 
 # ================= RESET FUNCTION =================
 def reset_defaults():
@@ -259,7 +255,6 @@ def process_recipe(r, name_map, market_data):
 
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
-            # Determine if this is refining for RRR logic
             is_refining = (CRAFT_TYPE == "refine")
             
             # Dynamic Return Rate Calculation
