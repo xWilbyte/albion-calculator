@@ -108,6 +108,7 @@ def to_list(x):
     return [x] 
 
 def get_tier(id_str): 
+    # Regex to capture Tier and Enchantment, e.g., T4_POTION@1 -> T4, 1
     match = re.search(r"T([1-8])(@([1-3]))?", id_str) 
     if match: 
         tier = match.group(1) 
