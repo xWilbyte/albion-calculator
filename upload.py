@@ -8,6 +8,27 @@ import pandas as pd
 from datetime import datetime, timezone 
 from concurrent.futures import ThreadPoolExecutor 
 
+# ================= MAPPING FOR RRR =================
+RRR_BONUS_MAP = {
+    "hide": "Martlock",
+    "rock": "Bridgewatch",
+    "fiber": "Lymhurst",
+    "wood": "Fort Sterling",
+    "ore": "Thetford"
+}
+
+def get_rrr(city, category, use_focus):
+    """
+    Calculates Resource Return Rate based on city bonuses and focus usage.
+    """
+    bonus_city = RRR_BONUS_MAP.get(category.lower()) if category else None
+    is_bonus_city = (city == bonus_city)
+    
+    if use_focus:
+        return 0.539 if is_bonus_city else 0.435
+    else:
+        return 0.367 if is_bonus_city else 0.153
+
 # ================= RESET FUNCTION =================
 def reset_defaults():
     st.session_state['craft_type'] = "Potions"
@@ -224,10 +245,12 @@ def fetch_market_data(ids):
 def process_recipe(r, name_map, market_data): 
     best_result = None 
     best_profit = -999999999
-    current_return = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE 
 
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
+            # Dynamic Return Rate Calculation
+            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS)
+            
             out_key = r['output'] 
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
             revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
@@ -323,7 +346,7 @@ if st.button("Click to Calculate", use_container_width=True):
             base_val = float(item.get("@itemvalue", 0)) 
             reqs = to_list(item.get("craftingrequirements")) 
             
-            def add_recipe(c, output, val): 
+            def add_recipe(c, output, val, category): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 
                 # Faction check
@@ -338,6 +361,7 @@ if st.button("Click to Calculate", use_container_width=True):
                 if inputs: 
                     recipes.append({
                         "output": normalize_id(output), # Output normalized
+                        "category": category, # Added category for RRR calculation
                         "inputs": inputs, 
                         "silver_cost": int(c.get("@silver", 0)), 
                         "yield": int(c.get("@amountcrafted", 1)), 
@@ -346,7 +370,7 @@ if st.button("Click to Calculate", use_container_width=True):
                     }) 
 
             for c in reqs: 
-                if c: add_recipe(c, u_name, base_val) 
+                if c: add_recipe(c, u_name, base_val, cat_tag) 
                 
             enchant = item.get("enchantments") 
             if enchant: 
@@ -356,7 +380,7 @@ if st.button("Click to Calculate", use_container_width=True):
                     ench_output = f"{u_name}_LEVEL{lvl}" 
                     
                     for c in to_list(ench.get("craftingrequirements")): 
-                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
+                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag) 
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']])) 
     with st.spinner('Fetching market data...'): 
