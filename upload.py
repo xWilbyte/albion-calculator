@@ -24,12 +24,12 @@ st.markdown("""
     }
     .stTable th, .stTable td { text-align: center !important; } 
 
-    /* Button Sizing and Styling */
+    /* Button Sizing and Styling (Adjusted to 75% size) */
     div.stButton > button { 
         width: 100% !important; 
-        height: 60px !important; 
+        height: 45px !important; 
         font-weight: bold !important; 
-        font-size: 20px !important; 
+        font-size: 15px !important; 
         background-color: #f63366 !important; 
         color: white !important; 
         border-radius: 5px !important;
