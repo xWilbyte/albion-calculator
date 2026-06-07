@@ -13,22 +13,12 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Force Sidebar to the top */
-    [data-testid="stSidebarContent"] { padding-top: 0px !important; }
+    /* Remove padding to pull sections to the top */
+    [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
+    [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
     
-    /* Remove default margins for headers inside sidebar */
-    [data-testid="stSidebarContent"] h2 { margin-top: 0px !important; padding-top: 10px !important; }
-
-    /* Make the button full width and match theme color */
-    div.stButton > button { 
-        width: 100% !important; 
-        height: 50px; 
-        font-weight: bold; 
-        font-size: 18px; 
-        background-color: var(--primary-color) !important; 
-        color: white !important; 
-        border: none !important;
-    } 
+    /* Remove default top margins from sidebar headers */
+    [data-testid="stSidebarContent"] h2 { margin-top: 0rem !important; padding-top: 0.5rem !important; }
 
     /* Force header and cell alignment */
     [data-testid="stDataFrame"] [role="columnheader"], 
@@ -40,6 +30,17 @@ st.markdown("""
     /* Center alignment for static tables (Recipes) */
     .stTable th, .stTable td { 
         text-align: center !important; 
+    } 
+    
+    /* Style the Calculate button - extended width */
+    div.stButton > button { 
+        width: 100% !important; 
+        height: 50px; 
+        font-weight: bold; 
+        font-size: 18px; 
+        background-color: #f63366; 
+        color: white; 
+        padding: 0px 20px !important; 
     } 
     </style> 
     """, unsafe_allow_html=True) 
@@ -59,9 +60,6 @@ CRAFT_CITIES = st.sidebar.multiselect("City", ["Bridgewatch", "Lymhurst", "Martl
 STATION_COST = st.sidebar.number_input("Station Cost", value=500) 
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Volume (24h)", value=100) 
 MIN_MARGIN = st.sidebar.number_input("Min Profit Margin %", value=10.0, step=1.0) 
-
-# MOVE CALCULATE BUTTON TO SIDEBAR
-should_calculate = st.sidebar.button("Calculate")
 
 st.sidebar.markdown("## Focus Settings") 
 USE_FOCUS = st.sidebar.checkbox("Use Focus", value=False) 
@@ -236,7 +234,7 @@ def process_recipe(r, name_map, market_data):
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
-if should_calculate: 
+if st.button("Calculate"): 
     if not CRAFT_CITIES: 
         st.error("Please select at least one city.") 
         st.stop() 
