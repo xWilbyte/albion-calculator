@@ -13,7 +13,8 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 # ================= SIDEBAR INPUTS =================
 st.sidebar.header("Crafting Config")
-CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["potion", "food"])
+# Changed to Capitalized versions, forced to lower() for internal logic compatibility
+CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower() 
 CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market"])
 STATION_COST = st.sidebar.number_input("Station Cost", value=500)
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Daily Volume", value=100)
@@ -27,8 +28,10 @@ BASE_RETURN_RATE = 0.152
 FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.header("Filters")
-ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [3, 4, 5, 6, 7, 8], default=[3, 4, 5, 6, 7, 8])
-MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 168, 72)
+# Updated to include tiers 1-8 as default
+ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
+# Updated max age to 1000
+MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72)
 
 # ================= CONSTANTS & RATE LIMITER =================
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/"
@@ -176,6 +179,7 @@ if st.button("Calculate"):
         for item in items:
             name = item.get("localizednames", {}).get("EN-US", item["@uniquename"])
             name_map[item["@uniquename"]] = name
+            # Updated to handle tiers 1-8
             tier_match = re.match(r"T([1-8])_", item["@uniquename"])
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue
 
