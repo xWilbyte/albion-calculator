@@ -240,6 +240,7 @@ def fetch_market_data(ids):
     return data_map 
 
 # ================= PROCESS RECIPE ================= 
+# ================= PROCESS RECIPE ================= 
 def process_recipe(r, name_map, market_data): 
     best_result = None 
     best_profit = -999999999
@@ -249,10 +250,14 @@ def process_recipe(r, name_map, market_data):
             # Dynamic Return Rate Calculation
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS)
             
-            out_key = r['output'] 
+            # --- ID HANDLING ---
+            # Potions/Food use standard IDs, Stone/Refining uses specific base names
+            out_key = r['output']
+            
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
             revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
             out_hours = get_hours_ago(out_data.get('date', 'N/A')) 
+            
             total_mat_cost = 0.0 
             max_mat_hours = 0 
             for i in r['inputs']: 
@@ -278,22 +283,19 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 
-                # --- ALBION STONE UI FIX ---
+                # --- UI DISPLAY LOGIC (SEPARATED) ---
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
                 
-                # If crafting a rock product, find the max enchantment level of the raw rock input
+                # Apply the Stone enchantment display tweak ONLY for refining/rock
                 if r.get("category") == "rock":
                     input_ench = 0
                     for inp in r['inputs']:
                         match = re.search(r"@([1-4])", inp['id'])
                         if match:
                             input_ench = max(input_ench, int(match.group(1)))
-                    
-                    # Artificially tweak the UI display to show the stone enchant tier
                     if input_ench > 0:
                         out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
-                # ---------------------------
 
                 best_result = { 
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
@@ -301,7 +303,7 @@ def process_recipe(r, name_map, market_data):
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
                 } 
-    return best_result 
+    return best_result
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
