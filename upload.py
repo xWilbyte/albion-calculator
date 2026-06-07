@@ -280,7 +280,7 @@ def process_recipe(r, name_map, market_data):
     return best_result 
 
 # ================= MAIN ================= 
-st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_ところがTrue) 
+st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
 if st.button("Click to Calculate", use_container_width=True): 
     if not CRAFT_CITIES or not SELL_CITIES: 
