@@ -8,12 +8,15 @@ import pandas as pd
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
+# ================= SESSION STATE INIT =================
+if 'df' not in st.session_state:
+    st.session_state.df = None
+
 # ================= PAGE CONFIG =================
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 # ================= SIDEBAR INPUTS =================
 st.sidebar.header("Crafting Config")
-# Changed to Capitalized versions, forced to lower() for internal logic compatibility
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower() 
 CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market"])
 STATION_COST = st.sidebar.number_input("Station Cost", value=500)
@@ -28,9 +31,7 @@ BASE_RETURN_RATE = 0.152
 FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.header("Filters")
-# Updated to include tiers 1-8 as default
 ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
-# Updated max age to 1000
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72)
 
 # ================= CONSTANTS & RATE LIMITER =================
@@ -141,7 +142,6 @@ def process_recipe(r, name_map, market_data):
     profit = gross_rev - total_cost
     pct = (profit / total_cost * 100) if total_cost > 0 else 0
     
-    # Filter by margin (can now include negative values)
     if pct < MIN_MARGIN or pct > IGNORE_MARGIN: return None
     if out_data.get('volume', 0) < MIN_DAILY_VOLUME: return None
 
@@ -179,7 +179,6 @@ if st.button("Calculate"):
         for item in items:
             name = item.get("localizednames", {}).get("EN-US", item["@uniquename"])
             name_map[item["@uniquename"]] = name
-            # Updated to handle tiers 1-8
             tier_match = re.match(r"T([1-8])_", item["@uniquename"])
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue
 
@@ -211,26 +210,29 @@ if st.button("Calculate"):
         market_data = fetch_market_data(lookup_ids)
     
     results = [f.result() for f in [ThreadPoolExecutor(max_workers=THREADS).submit(process_recipe, r, name_map, market_data) for r in recipes] if f.result()]
-    df = pd.DataFrame(results)
+    st.session_state.df = pd.DataFrame(results)
+
+# Display section
+if st.session_state.df is not None and not st.session_state.df.empty:
+    df = st.session_state.df
     
-    if not df.empty:
-        if not USE_FOCUS:
-            df = df.drop(columns=["S/F", "Focus"], errors='ignore')
-            df = df.sort_values(by="Margin%", ascending=False)
-        else:
-            df = df.sort_values(by="S/F", ascending=False)
-            
-        st.dataframe(
-            df, 
-            width='stretch', 
-            height=800,
-            column_config={
-                "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
-                "Price": st.column_config.NumberColumn("Price", format="%,d"),
-                "Price (24h)": st.column_config.NumberColumn("Price (24h)", format="%,d"),
-                "Focus": st.column_config.NumberColumn("Focus", format="%,d"),
-                "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"),
-            }
-        )
+    if not USE_FOCUS:
+        df = df.drop(columns=["S/F", "Focus"], errors='ignore')
+        df = df.sort_values(by="Margin%", ascending=False)
     else:
-        st.warning("No items found.")
+        df = df.sort_values(by="S/F", ascending=False)
+        
+    st.dataframe(
+        df, 
+        width='stretch', 
+        height=800,
+        column_config={
+            "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
+            "Price": st.column_config.NumberColumn("Price", format="%,d"),
+            "Price (24h)": st.column_config.NumberColumn("Price (24h)", format="%,d"),
+            "Focus": st.column_config.NumberColumn("Focus", format="%,d"),
+            "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"),
+        }
+    )
+elif st.session_state.df is not None and st.session_state.df.empty:
+    st.warning("No items found.")
