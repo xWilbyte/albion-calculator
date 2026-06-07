@@ -283,10 +283,13 @@ if st.button("Click to Calculate", use_container_width=True):
             u_name = item.get("@uniquename") 
             if not u_name: continue 
             
-            is_match = False
+            # --- FILTER ROCK/STONE AT TOP ---
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
-            
+            if "rock" in cat_tag or "stone" in cat_tag or "rock" in subcat or "stone" in subcat:
+                continue
+
+            is_match = False
             if CRAFT_TYPE == "refine":
                 if subcat == "refinedresources":
                     is_match = True
@@ -318,14 +321,9 @@ if st.button("Click to Calculate", use_container_width=True):
                 
             enchant = item.get("enchantments") 
             if enchant: 
-                # Stricter filter for rock/stone to prevent duplicate logic loops
-                if "rock" in cat_tag or "stone" in cat_tag or "rock" in subcat or "stone" in subcat:
-                    continue
-                
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    is_refined = subcat == "refinedresources"
-                    ench_output = f"{u_name}_LEVEL{lvl}@{lvl}" if is_refined else f"{u_name}@{lvl}"
+                    ench_output = f"{u_name}@{lvl}"
                     
                     base_name = name_lookup.get(u_name, u_name) 
                     name_map[ench_output] = f"{base_name} .{lvl}"
