@@ -75,6 +75,7 @@ SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=False)
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=False) 
 SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=False) 
 SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price (24h)", value=False) 
+SHOW_PROFIT = st.sidebar.checkbox("Show Profit (Silver)", value=True) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -222,6 +223,7 @@ def process_recipe(r, name_map, market_data):
                 "Sell Price": int(gross_rev), 
                 "Avg Price (24h)": int(avg_rev),
                 "Profit Margin%": round(pct, 1), 
+                "Profit (Silver)": int(profit),
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
                 "Vol (24h)": out_data.get('volume', 0),
@@ -316,6 +318,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     cols.extend(["Mat Cost", "Sell Price"])
     if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
     cols.append("Profit Margin%")
+    if SHOW_PROFIT: cols.append("Profit (Silver)")
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
     if SHOW_VOL: cols.append("Vol (24h)")
@@ -336,6 +339,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
         "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
+        "Profit (Silver)": st.column_config.NumberColumn("Profit (Silver)", format="%,d", alignment="center"),
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
         "Vol (24h)": st.column_config.NumberColumn("Vol (24h)", format="%,d", alignment="center"),
