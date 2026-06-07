@@ -335,9 +335,18 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     col_config = {
         "Tier": st.column_config.TextColumn("Tier", alignment="center"),
         "Name": st.column_config.TextColumn("Name", alignment="center"),
+        "Craft City": st.column_config.TextColumn("Craft City", alignment="center"),
+        "Sell City": st.column_config.TextColumn("Sell City", alignment="center"),
         "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
+        "Profit (Silver)": st.column_config.NumberColumn("Profit (Silver)", format="%,d", alignment="center"),
+        "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
+        "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"),
+        "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
+        "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
+        "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
     
     # Logic to scale table height with row count
