@@ -108,13 +108,15 @@ def to_list(x):
     return [x] 
 
 def get_tier(id_str): 
-    # Regex to capture Tier and Enchantment, e.g., T4_POTION@1 -> T4, 1
-    match = re.search(r"T([1-8])(@([1-3]))?", id_str) 
-    if match: 
-        tier = match.group(1) 
-        ench = match.group(3) 
-        return f"{tier}.{ench}" if ench else tier 
-    return "0" 
+    # Extract Tier (e.g., T4 from T4_POTION)
+    tier_match = re.search(r"T([1-8])", id_str)
+    tier = tier_match.group(1) if tier_match else "0"
+    
+    # Extract Enchantment (e.g., 1 from T4_POTION@1)
+    ench_match = re.search(r"@([1-3])", id_str)
+    if ench_match:
+        return f"{tier}.{ench_match.group(1)}"
+    return tier
 
 def get_hours_ago(date_str): 
     if date_str == "N/A": return 999 
