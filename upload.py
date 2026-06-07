@@ -14,15 +14,16 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 # CSS to improve layout, button size, and alignment 
 st.markdown(""" 
     <style> 
-    /* Center align table content */
+    /* Center align DataFrames */
     div[data-testid="stDataFrame"] { 
         text-align: center !important; 
     } 
-    th, td { 
+    /* Center align static tables */
+    div.stTable table, div.stTable th, div.stTable td { 
         text-align: center !important; 
     } 
-    /* Style the sidebar button to be large and prominent */
-    [data-testid="stSidebar"] button { 
+    /* Style the Calculate button to be large and prominent */
+    div.stButton > button { 
         width: 100%; 
         height: 50px; 
         font-weight: bold; 
@@ -63,9 +64,6 @@ IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0)
 SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=True) 
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=True) 
 SHOW_VOL = st.sidebar.checkbox("Show Vol(24h)", value=True) 
-
-# Moved button to sidebar
-calculate_btn = st.sidebar.button("Calculate")
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -220,9 +218,9 @@ def process_recipe(r, name_map, market_data):
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
-st.divider() 
 
-if calculate_btn: 
+# Moved button back to main body
+if st.button("Calculate"): 
     if not CRAFT_CITIES: 
         st.error("Please select at least one city.") 
         st.stop() 
