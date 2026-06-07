@@ -325,7 +325,11 @@ if st.button("Calculate"):
 if st.session_state.df is not None and not st.session_state.df.empty: 
     df = st.session_state.df 
     
-    cols = ["Tier", "Name", "Craft City", "Sell City", "Mat Cost", "Sell Price"]
+    cols = ["Tier", "Name"]
+    if len(CRAFT_CITIES) > 1: cols.append("Craft City")
+    if len(SELL_CITIES) > 1: cols.append("Sell City")
+    cols.extend(["Mat Cost", "Sell Price"])
+    
     if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
     cols.append("Profit Margin%")
     if SHOW_PROFIT: cols.append("Profit (Silver)")
