@@ -28,11 +28,9 @@ st.markdown("""
         text-align: center !important; 
     } 
     
-    /* Button Sizing (60% horizontal width) */
+    /* Button Sizing (75% of previous) */
     div.stButton > button { 
-        width: 60% !important; 
-        display: block !important;
-        margin: 0 auto !important;
+        width: 100% !important; 
         height: 45px !important; 
         font-weight: bold; 
         font-size: 15px; 
