@@ -293,7 +293,6 @@ def process_recipe(r, name_map, market_data):
                     # Artificially tweak the UI display to show the stone enchant tier
                     if input_ench > 0:
                         out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
-                        out_name = f"{out_name} (from .{input_ench})"
                 # ---------------------------
 
                 best_result = { 
