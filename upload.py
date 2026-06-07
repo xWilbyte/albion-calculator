@@ -8,6 +8,25 @@ import pandas as pd
 from datetime import datetime, timezone 
 from concurrent.futures import ThreadPoolExecutor 
 
+# ================= RESET FUNCTION =================
+def reset_defaults():
+    st.session_state['craft_type'] = "potion"
+    st.session_state['craft_cities'] = ["Bridgewatch"]
+    st.session_state['sell_cities'] = ["Bridgewatch"]
+    st.session_state['station_cost'] = 500
+    st.session_state['min_vol'] = 100
+    st.session_state['min_margin'] = 10.0
+    st.session_state['use_focus'] = False
+    st.session_state['focus_eff'] = 10000
+    st.session_state['allowed_tiers'] = [1, 2, 3, 4, 5, 6, 7, 8]
+    st.session_state['max_age'] = 48
+    st.session_state['ignore_margin'] = 1000.0
+    st.session_state['show_mat_age'] = False
+    st.session_state['show_item_age'] = False
+    st.session_state['show_vol'] = True
+    st.session_state['show_avg_price'] = False
+    st.session_state['show_profit'] = False
+
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
 
@@ -49,30 +68,33 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food"]).lower()  
-    CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"]) 
-    SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"]) 
-    STATION_COST = st.number_input("Station Cost", value=500) 
-    MIN_DAILY_VOLUME = st.number_input("Min Volume (24h)", value=100) 
-    MIN_MARGIN = st.number_input("Min Profit Margin %", value=10.0, step=1.0) 
+    CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food"], key="craft_type").lower()  
+    CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
+    SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"], key="sell_cities") 
+    STATION_COST = st.number_input("Station Cost", value=500, key="station_cost") 
+    MIN_DAILY_VOLUME = st.number_input("Min Volume (24h)", value=100, key="min_vol") 
+    MIN_MARGIN = st.number_input("Min Profit Margin %", value=10.0, step=1.0, key="min_margin") 
 
 with st.sidebar.expander("Focus Settings"):
-    USE_FOCUS = st.checkbox("Use Focus", value=False) 
-    FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000) 
+    USE_FOCUS = st.checkbox("Use Focus", value=False, key="use_focus") 
+    FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000, key="focus_eff") 
     BASE_RETURN_RATE = 0.152 
     FOCUS_RETURN_RATE = 0.435 
 
 with st.sidebar.expander("Filters"):
-    ALLOWED_TIERS = st.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
-    MAX_AGE = st.slider("Max Data Age (Hours)", 1, 1000, 48) 
-    IGNORE_MARGIN = st.number_input("Ignore Margin > %", value=1000.0) 
+    ALLOWED_TIERS = st.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8], key="allowed_tiers") 
+    MAX_AGE = st.slider("Max Data Age (Hours)", 1, 1000, 48, key="max_age") 
+    IGNORE_MARGIN = st.number_input("Ignore Margin > %", value=1000.0, key="ignore_margin") 
 
 with st.sidebar.expander("Display Options"):
-    SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False) 
-    SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False) 
-    SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True) 
-    SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False) 
-    SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False) 
+    SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False, key="show_mat_age") 
+    SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False, key="show_item_age") 
+    SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True, key="show_vol") 
+    SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False, key="show_avg_price") 
+    SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
+
+# Reset Button
+st.sidebar.button("Reset to Default", on_click=reset_defaults, use_container_width=True)
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
