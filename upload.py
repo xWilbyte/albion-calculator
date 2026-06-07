@@ -311,7 +311,12 @@ if st.button("Click to Calculate", use_container_width=True):
         market_data = fetch_market_data(lookup_ids) 
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
-    results = [f.result() for f in [ThreadPoolExecutor(max_workers=THREADS).submit(process_recipe, r, name_map, market_data) for r in recipes] if f.result()] 
+    
+    # IMPROVED CONCURRENCY LOGIC
+    with ThreadPoolExecutor(max_workers=THREADS) as executor:
+        futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
+        results = [f.result() for f in futures if f.result()]
+        
     st.session_state.df = pd.DataFrame(results) 
 
 if st.session_state.df is not None and not st.session_state.df.empty: 
