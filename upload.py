@@ -194,8 +194,8 @@ def process_recipe(r, name_map, market_data):
                 "Name": name_map.get(r['output'], r['output']), 
                 "Inputs": r['inputs'],  
                 "Mat Cost": int(total_cost), 
-                "Mat Price": int(gross_rev), 
-                "Sell Margin%": round(pct, 1), 
+                "Sell Price": int(gross_rev), 
+                "Profit Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
                 "Vol(24h)": out_data.get('volume', 0),
@@ -206,7 +206,7 @@ def process_recipe(r, name_map, market_data):
     return best_result 
 
 # ================= MAIN ================= 
-st.title("Albion Crafting Calculator") 
+st.title("Albion Crafting Profit Calculator") 
 
 if st.button("Calculate"): 
     if not CRAFT_CITIES: 
@@ -289,7 +289,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     # Build list of columns to show
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
-    cols.extend(["Mat Cost", "Mat Price", "Sell Margin%"])
+    cols.extend(["Mat Cost", "Sell Price", "Profit Margin%"])
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
     if SHOW_VOL: cols.append("Vol(24h)")
@@ -297,7 +297,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_MAT_AGE: cols.append("Mat Age")
     
     display_df = df[cols].copy()
-    sort_col = "S/F" if USE_FOCUS else "Sell Margin%"
+    sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
         
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
@@ -310,7 +310,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         column_config={ 
             "Tier": st.column_config.NumberColumn("Tier", format="%d"), 
             "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d"), 
-            "Mat Price": st.column_config.NumberColumn("Mat Price", format="%,d"), 
+            "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d"), 
             "Focus": st.column_config.NumberColumn("Focus", format="%,d"), 
             "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"), 
         } 
@@ -318,36 +318,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
 
     # --- MATERIAL BREAKDOWN --- 
     st.divider() 
-    st.subheader("Detailed Recipes") 
-    
-    search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...") 
-    
-    for _, row in df.iterrows(): 
-        if search_term.lower() in row['Name'].lower(): 
-            city_display = f" | Best City: {row['Best City']}" if len(CRAFT_CITIES) > 1 else ""
-            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']}){city_display}"): 
-                mat_data = [] 
-                for item in row['Inputs']: 
-                    mat_id = item['id'] 
-                    m_data = st.session_state.market_data.get(mat_id, {}).get(row['Best City'], {}) 
-                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
-                    
-                    mat_data.append({ 
-                        "Tier": get_tier(mat_id), 
-                        "Material": st.session_state.name_map.get(mat_id, mat_id), 
-                        "Quantity": item['count'], 
-                        "Unit Cost": f"{int(price):,}", 
-                        "Total Material Cost": f"{int(price * item['count']):,}" 
-                    }) 
-                
-                st.table(pd.DataFrame(mat_data)) 
-
-elif st.session_state.df is not None and st.session_state.df.empty: 
-    st.warning("No items found.")
-
-    # --- MATERIAL BREAKDOWN --- 
-    st.divider() 
-    st.subheader("Detailed Recipes") 
+    st.subheader("Recipes") 
     
     search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...") 
     
