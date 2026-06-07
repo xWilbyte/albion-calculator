@@ -43,10 +43,23 @@ st.markdown("""
     }
     .stTable th, .stTable td { text-align: center !important; } 
 
-    /* Button Sizing and Styling (Adjusted to 75% size) */
-    div.stButton > button { 
+    /* Calculate Button (Main Area) */
+    [data-testid="stMainBlockContainer"] div.stButton > button { 
         width: 100% !important; 
         height: 45px !important; 
+        font-weight: bold !important; 
+        font-size: 15px !important; 
+        background-color: #f63366 !important; 
+        color: white !important; 
+        border-radius: 5px !important;
+        margin-top: 10px !important;
+        margin-bottom: 20px !important;
+    } 
+
+    /* Reset Button (Sidebar - 20% thinner) */
+    [data-testid="stSidebar"] div.stButton > button { 
+        width: 100% !important; 
+        height: 36px !important; 
         font-weight: bold !important; 
         font-size: 15px !important; 
         background-color: #f63366 !important; 
@@ -94,7 +107,7 @@ with st.sidebar.expander("Display Options"):
     SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
 
 # Reset Button
-st.sidebar.button("Reset to Default", on_click=reset_defaults, use_container_width=True)
+st.sidebar.button("Restore Default Settings", on_click=reset_defaults, use_container_width=True)
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
