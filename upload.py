@@ -299,11 +299,11 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                 price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0)
                 
                 mat_data.append({
+                    "Tier": get_tier(mat_id),
                     "Material": st.session_state.name_map.get(mat_id, mat_id),
                     "Quantity": item['count'],
                     "Unit Cost": f"{int(price):,}",
-                    "Total Material Cost": f"{int(price * item['count']):,}",
-                    "Returnable": "No" if item['ignore_return'] else "Yes"
+                    "Total Material Cost": f"{int(price * item['count']):,}"
                 })
             
             st.table(pd.DataFrame(mat_data))
