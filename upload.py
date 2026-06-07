@@ -292,6 +292,9 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         }
     )
 
+    # Added print for location
+    st.write(f"**Market Data Sources:** {', '.join(CRAFT_CITIES)}")
+
     # --- MATERIAL BREAKDOWN ---
     st.divider()
     st.subheader("Detailed Recipes")
