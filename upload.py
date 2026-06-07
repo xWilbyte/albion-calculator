@@ -322,10 +322,13 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Standardized ID for all types (Potion, Food, Refine)
-                    ench_output = f"{u_name}@{lvl}"
+                    # Specific ID format logic
+                    if subcat == "refinedresources":
+                        ench_output = f"{u_name}_LEVEL{lvl}@{lvl}"
+                    else:
+                        ench_output = f"{u_name}@{lvl}"
                     
-                    # Keep name clean without .1 suffix
+                    # Store clean name for the display
                     name_map[ench_output] = name_lookup.get(u_name, u_name)
                     
                     for c in to_list(ench.get("craftingrequirements")): 
