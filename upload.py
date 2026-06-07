@@ -97,9 +97,9 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refine"], key="craft_type")
+    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining"], key="craft_type")
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
-    elif ui_choice == "Refine": CRAFT_TYPE = "refine"
+    elif ui_choice == "Refining": CRAFT_TYPE = "refine"
     else: CRAFT_TYPE = "food"
 
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -325,8 +325,6 @@ if st.button("Click to Calculate", use_container_width=True):
             
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
-            if "rock" in cat_tag or "stone" in cat_tag or "rock" in subcat or "stone" in subcat:
-                continue
 
             is_match = False
             if CRAFT_TYPE == "refine":
