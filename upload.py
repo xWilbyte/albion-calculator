@@ -31,7 +31,7 @@ ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [3, 4, 5, 6], default=[3
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 168, 72)
 SHOW_NEGATIVE = st.sidebar.checkbox("Show Negative Profit", value=False)
 
-# ================= CONSTANTS =================
+# ================= CONSTANTS & RATE LIMITER =================
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/"
 HISTORY_URL = "https://west.albion-online-data.com/api/v2/stats/history/"
 MARKET_TAX = 0.065
@@ -39,7 +39,6 @@ THREADS = 10
 BATCH_SIZE = 100
 HIST_BATCH_SIZE = 50
 
-# ================= RATE LIMITER =================
 class RateLimiter:
     def __init__(self, delay):
         self.delay = delay
@@ -52,7 +51,7 @@ class RateLimiter:
                 time.sleep(self.delay - elapsed)
             self.last_call = time.time()
 
-limiter = RateLimiter(1/150) # 150 requests per minute
+limiter = RateLimiter(1/150)
 
 # ================= UTILS =================
 def to_list(x):
@@ -71,8 +70,6 @@ def get_hours_ago(date_str):
 def format_age(hours):
     return "N/A" if hours == 999 else f"{hours}h"
 
-def normalize_for_api(item_id: str) -> str: return item_id
-
 def get_id(x):
     if not isinstance(x, dict): return None
     return x.get("@uniquename") or x.get("id")
@@ -81,7 +78,6 @@ def get_id(x):
 def fetch_market_data(ids):
     data_map = {i: {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} for i in ids}
     unique_ids = list(set(ids))
-
     for i in range(0, len(unique_ids), BATCH_SIZE):
         limiter.wait()
         chunk = unique_ids[i : i + BATCH_SIZE]
@@ -95,7 +91,6 @@ def fetch_market_data(ids):
                     if price > 0 and item_id in data_map:
                         data_map[item_id].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')})
         except: continue
-
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE):
         limiter.wait()
         chunk = unique_ids[i : i + HIST_BATCH_SIZE]
@@ -119,7 +114,7 @@ def fetch_market_data(ids):
 
 # ================= PROCESS RECIPE =================
 def process_recipe(r, name_map, market_data):
-    out_key = normalize_for_api(r['output'])
+    out_key = r['output']
     out_data = market_data.get(out_key, {})
     revenue = out_data['price'] if (out_data.get('date') != 'N/A' and get_hours_ago(out_data['date']) <= MAX_AGE) else out_data.get('hist_price', 0)
     out_hours = get_hours_ago(out_data.get('date', 'N/A'))
@@ -129,8 +124,7 @@ def process_recipe(r, name_map, market_data):
     current_return = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE
 
     for i in r['inputs']:
-        mat_id = normalize_for_api(i['id'])
-        mat_name = name_map.get(i['id'], i['id'])
+        mat_id = i['id']
         mat_data = market_data.get(mat_id, {})
         price = mat_data.get('price', 0) if (mat_data.get('date') != 'N/A' and get_hours_ago(mat_data.get('date')) <= MAX_AGE) else mat_data.get('hist_price', 0)
         max_mat_hours = max(max_mat_hours, get_hours_ago(mat_data.get('date', 'N/A')))
@@ -187,21 +181,19 @@ if st.button("Calculate"):
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue
 
             if item.get("@craftingcategory") == CRAFT_TYPE and CRAFT_TYPE in ("food", "potion"):
-                base_item_val = float(item.get("@itemvalue", 0))
+                base_val = float(item.get("@itemvalue", 0))
                 reqs = to_list(item.get("craftingrequirements"))
                 
-                # Logic for normal and enchanted items
-                def add_recipe(c, output, output_name, item_val):
+                def add_recipe(c, output, val):
                     raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or [])
                     inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)]
                     if inputs:
                         recipes.append({"output": output, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), 
                                         "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), 
-                                        "item_value": item_val})
+                                        "item_value": val})
 
                 for c in reqs:
-                    if c: add_recipe(c, item["@uniquename"], name, base_item_val)
-                
+                    if c: add_recipe(c, item["@uniquename"], base_val)
                 enchant = item.get("enchantments")
                 if enchant:
                     for ench in to_list(enchant.get("enchantment")):
@@ -209,27 +201,34 @@ if st.button("Calculate"):
                         ench_output = f"{item['@uniquename']}@{lvl}"
                         name_map[ench_output] = f"{name} (Ench {lvl})"
                         for c in to_list(ench.get("craftingrequirements")):
-                            if c: add_recipe(c, ench_output, name_map[ench_output], base_item_val * (2 ** lvl))
+                            if c: add_recipe(c, ench_output, base_val * (2 ** lvl))
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']]))
     with st.spinner('Fetching market data...'):
         market_data = fetch_market_data(lookup_ids)
     
-    results = []
-    with ThreadPoolExecutor(max_workers=THREADS) as executor:
-        futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
-        results = [f.result() for f in futures if f.result()]
-
+    results = [f.result() for f in [ThreadPoolExecutor(max_workers=THREADS).submit(process_recipe, r, name_map, market_data) for r in recipes] if f.result()]
     df = pd.DataFrame(results)
     
     if not df.empty:
-        # --- COLUMN FILTERING ---
         if not USE_FOCUS:
             df = df.drop(columns=["S/F", "Focus"], errors='ignore')
             df = df.sort_values(by="Margin%", ascending=False)
         else:
             df = df.sort_values(by="S/F", ascending=False)
             
-        st.dataframe(df, use_container_width=True)
+        # Display with new Formatting
+        st.dataframe(
+            df, 
+            width='stretch', 
+            height=800, # This forces the table to be tall
+            column_config={
+                "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
+                "Price": st.column_config.NumberColumn("Price", format="%,d"),
+                "Price (24h)": st.column_config.NumberColumn("Price (24h)", format="%,d"),
+                "Focus": st.column_config.NumberColumn("Focus", format="%,d"),
+                "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"),
+            }
+        )
     else:
         st.warning("No items found.")
