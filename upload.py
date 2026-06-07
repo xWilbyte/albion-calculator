@@ -165,43 +165,51 @@ st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
     try:
-        # 1. Parse items.json robustly
+        # Load items.json
         with open("items.json", "r", encoding="utf-8") as f:
-            raw_data = json.load(f)
-            # Handle different JSON structures
-            root = raw_data.get("items", raw_data) if isinstance(raw_data, dict) else raw_data
+            raw_items = json.load(f)
+            root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {}
         
-        # 2. Parse formattedItems.json
+        # Load formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
             name_data = json.load(f)
+            
+            # --- DEBUG: Uncomment to see the structure of your JSON if it keeps failing ---
+            # st.write("Preview of JSON entry 0:")
+            # st.json(name_data[0] if name_data and isinstance(name_data, list) else name_data)
+            
             name_lookup = {}
-            for item in name_data:
-                if isinstance(item, dict):
-                    var_name = item.get("LocalizationNameVariable", "")
-                    if var_name:
+            if isinstance(name_data, list):
+                for item in name_data:
+                    # Skip null entries
+                    if item is None or not isinstance(item, dict): 
+                        continue
+                    
+                    var_name = item.get("LocalizationNameVariable")
+                    if var_name and isinstance(var_name, str):
+                        # Clean key
                         key = var_name.replace("@ITEMS_", "").replace("@", "")
-                        name_lookup[key] = item.get("LocalizedNames", {}).get("EN-US", key)
                         
-    except FileNotFoundError:
-        st.error("JSON files (items.json or formattedItems.json) missing!")
+                        # Get localized names safely
+                        loc_names = item.get("LocalizedNames")
+                        if isinstance(loc_names, dict):
+                            name_lookup[key] = loc_names.get("EN-US", key)
+                        else:
+                            name_lookup[key] = key
+    except Exception as e:
+        st.error(f"Error loading JSON: {e}")
         st.stop()
 
     recipes = []
     name_map = {}
 
-    # Check if root is dictionary (categories) or list (flat items)
-    if isinstance(root, dict):
-        iterator = root.items()
-    else:
-        iterator = [("all", root)]
-
-    for cat, items in iterator:
+    for cat, items in root.items():
         if not isinstance(items, list): continue
         for item in items:
-            if not item: continue # Safety skip for null entries
+            if not isinstance(item, dict): continue
             
             u_name = item.get("@uniquename")
-            if not u_name: continue # Skip if item has no ID
+            if not u_name: continue
             
             name = name_lookup.get(u_name, u_name)
             name_map[u_name] = name
