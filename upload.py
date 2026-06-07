@@ -304,7 +304,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         
     st.dataframe( 
         display_df, 
-        width=None,
+        width=None, # Streamlit defaults to 'stretch' if omitted or None is not passed, but passing the value 'stretch' is safer
         height=600,
         hide_index=True, 
         column_config={ 
