@@ -156,12 +156,12 @@ def get_tier(id_str):
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
     
-    # Check for standard gear enchantment (e.g., @1)
-    ench_match = re.search(r"@([1-3])", id_str)
+    # Check for standard gear enchantment (e.g., @1 to @4)
+    ench_match = re.search(r"@([1-4])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
     
-    # Check for refined resource level (e.g., _LEVEL1)
-    level_match = re.search(r"_LEVEL([1-3])", id_str)
+    # Check for refined resource level (e.g., _LEVEL1 to _LEVEL4)
+    level_match = re.search(r"_LEVEL([1-4])", id_str)
     if level_match: return f"{tier}.{level_match.group(1)}"
     
     return tier
