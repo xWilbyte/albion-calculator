@@ -15,8 +15,11 @@ st.markdown("""
     <style> 
     /* Remove padding to pull sections to the top */
     [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
-    [data-testid="stSidebarContent"] { padding-top: 0px !important; }
+    [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
     
+    /* Remove default top margins from sidebar headers */
+    [data-testid="stSidebarContent"] h2 { margin-top: 0rem !important; padding-top: 0.5rem !important; }
+
     /* Force header and cell alignment */
     [data-testid="stDataFrame"] [role="columnheader"], 
     [data-testid="stDataFrame"] [role="gridcell"] {
@@ -29,14 +32,15 @@ st.markdown("""
         text-align: center !important; 
     } 
     
-    /* Style the Calculate button */
+    /* Style the Calculate button - extended width */
     div.stButton > button { 
-        width: 100%; 
+        width: 100% !important; 
         height: 50px; 
         font-weight: bold; 
         font-size: 18px; 
         background-color: #f63366; 
         color: white; 
+        padding: 0px 20px !important; 
     } 
     </style> 
     """, unsafe_allow_html=True) 
@@ -50,7 +54,6 @@ if 'market_data' not in st.session_state:
     st.session_state.market_data = {} 
 
 # ================= SIDEBAR INPUTS ================= 
-# Using markdown instead of st.sidebar.header to avoid default header margins
 st.sidebar.markdown("## Config") 
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower()  
 CRAFT_CITIES = st.sidebar.multiselect("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"], default=["Bridgewatch"]) 
