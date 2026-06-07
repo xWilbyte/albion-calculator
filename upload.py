@@ -80,14 +80,23 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 st.sidebar.markdown("## Config") 
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
-# Define Local Bonuses here for easy updates
+# Define Local Bonuses
 LOCAL_BONUSES = {
     "Brecilien": {"potion": 15},
     "Caerleon": {"food": 15}
 }
 
+# Define Refining Bonuses
+REFINING_BONUSES = {
+    "Martlock": {"hide": 10},
+    "Lymhurst": {"wood": 10},
+    "Fort Sterling": {"ore": 10},
+    "Bridgewatch": {"stone": 10},
+    "Thetford": {"fiber": 10}
+}
+
 with st.sidebar.expander("General Settings", expanded=True):
-    CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food"], key="craft_type").lower()  
+    CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food", "Refine"], key="craft_type").lower()  
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
     SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"], key="sell_cities") 
     STATION_COST = st.number_input("Station Cost", value=500, key="station_cost") 
@@ -97,7 +106,8 @@ with st.sidebar.expander("General Settings", expanded=True):
 with st.sidebar.expander("Focus Settings"):
     USE_FOCUS = st.checkbox("Use Focus", value=False, key="use_focus") 
     FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000, key="focus_eff") 
-    BASE_RETURN_RATE = 0.152 
+    BASE_RETURN_RATE = 0.152 # For crafting
+    BASE_REFINE_RATE = 0.18 # For refining
     FOCUS_RETURN_RATE = 0.435 
 
 with st.sidebar.expander("Filters"):
@@ -216,15 +226,19 @@ def process_recipe(r, name_map, market_data):
     best_result = None 
     best_profit = -999999999
     
-    # Calculate Base Return Rate Sum (as percentage)
-    base_return_pct = (FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE) * 100
-
     for craft_city in CRAFT_CITIES: 
-        # Calculate Local Bonus for this city and item type
-        local_bonus_pct = LOCAL_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
-        
-        # Calculate effective return rate: 1 - 1/(1 + (Bonus_Sum/100))
-        current_return = 1 - (1 / (1 + ((base_return_pct + local_bonus_pct) / 100)))
+        # Calculate Return Rates
+        if CRAFT_TYPE == "refine":
+            # 18% base for refining + local bonus
+            bonus = REFINING_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
+            total_bonus = 18 + bonus # Standard Base 18%
+            current_return = 1 - (1 / (1 + (total_bonus / 100)))
+        else:
+            # Potion/Food
+            base_pct = (FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE) * 100
+            local = LOCAL_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
+            total_bonus = base_pct + local
+            current_return = 1 - (1 / (1 + (total_bonus / 100)))
 
         for sell_city in SELL_CITIES:
             out_key = r['output'] 
@@ -240,6 +254,7 @@ def process_recipe(r, name_map, market_data):
                 max_mat_hours = max(max_mat_hours, get_hours_ago(mat_data.get('date', 'N/A'))) 
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
                 total_mat_cost += (price * i['count'] * modifier) 
+            
             if out_hours > MAX_AGE or max_mat_hours > MAX_AGE: continue 
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0) 
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
@@ -247,8 +262,10 @@ def process_recipe(r, name_map, market_data):
             avg_rev = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
             profit = gross_rev - total_cost 
             pct = (profit / total_cost * 100) if total_cost > 0 else 0 
+            
             if pct < MIN_MARGIN or pct > IGNORE_MARGIN: continue 
             if out_data.get('volume', 0) < MIN_DAILY_VOLUME: continue 
+            
             if profit > best_profit: 
                 best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
@@ -256,14 +273,14 @@ def process_recipe(r, name_map, market_data):
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": get_tier(r['output']), "Name": name_map.get(r['output'], r['output']), 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
-                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
+                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
+                    "RRR %": f"{round(current_return * 100, 1)}%"
                 } 
     return best_result 
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
-# Button placed in Main Area
 if st.button("Click to Calculate", use_container_width=True): 
     if not CRAFT_CITIES or not SELL_CITIES: 
         st.error("Please select at least one Craft city and one Sell city.") 
@@ -296,37 +313,49 @@ if st.button("Click to Calculate", use_container_width=True):
             if not isinstance(item, dict): continue 
             u_name = item.get("@uniquename") 
             if not u_name: continue 
+            
+            # Determine if we should process this item
+            is_match = False
+            if CRAFT_TYPE == "refine":
+                # Detect refined resources
+                if item.get("@craftingcategory") == "refining" or item.get("@shopsubcategory1") == "refinedresources":
+                    is_match = True
+            elif item.get("@craftingcategory") == CRAFT_TYPE:
+                is_match = True
+            
+            if not is_match: continue
+
             name = name_lookup.get(u_name, u_name) 
             name_map[u_name] = name 
             tier_match = re.match(r"T([1-8])_", u_name) 
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
-            if item.get("@craftingcategory") == CRAFT_TYPE and CRAFT_TYPE in ("food", "potion"): 
-                base_val = float(item.get("@itemvalue", 0)) 
-                reqs = to_list(item.get("craftingrequirements")) 
-                def add_recipe(c, output, val): 
-                    raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
-                    inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
-                    if inputs: 
-                        recipes.append({
-                            "output": output, 
-                            "inputs": inputs, 
-                            "silver_cost": int(c.get("@silver", 0)), 
-                            "yield": int(c.get("@amountcrafted", 1)), 
-                            "focus_cost": int(c.get("@craftingfocus", 0)), 
-                            "item_value": val,
-                            "slot_type": item.get("@slottype") # Capture slot type here
-                        }) 
-                for c in reqs: 
-                    if c: add_recipe(c, u_name, base_val) 
-                enchant = item.get("enchantments") 
-                if enchant: 
-                    for ench in to_list(enchant.get("enchantment")): 
-                        lvl = int(ench.get("@enchantmentlevel", 0)) 
-                        ench_output = f"{u_name}@{lvl}" 
-                        base_name = name_lookup.get(u_name, u_name) 
-                        name_map[ench_output] = base_name
-                        for c in to_list(ench.get("craftingrequirements")): 
-                            if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
+            
+            base_val = float(item.get("@itemvalue", 0)) 
+            reqs = to_list(item.get("craftingrequirements")) 
+            def add_recipe(c, output, val): 
+                raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
+                inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
+                if inputs: 
+                    recipes.append({
+                        "output": output, 
+                        "inputs": inputs, 
+                        "silver_cost": int(c.get("@silver", 0)), 
+                        "yield": int(c.get("@amountcrafted", 1)), 
+                        "focus_cost": int(c.get("@craftingfocus", 0)), 
+                        "item_value": val,
+                        "slot_type": item.get("@slottype") 
+                    }) 
+            for c in reqs: 
+                if c: add_recipe(c, u_name, base_val) 
+            enchant = item.get("enchantments") 
+            if enchant: 
+                for ench in to_list(enchant.get("enchantment")): 
+                    lvl = int(ench.get("@enchantmentlevel", 0)) 
+                    ench_output = f"{u_name}@{lvl}" 
+                    base_name = name_lookup.get(u_name, u_name) 
+                    name_map[ench_output] = base_name
+                    for c in to_list(ench.get("craftingrequirements")): 
+                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']])) 
     with st.spinner('Fetching market data...'): 
@@ -345,7 +374,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Craft City")
     if len(SELL_CITIES) > 1: cols.append("Sell City")
-    cols.extend(["Mat Cost", "Sell Price"])
+    cols.extend(["Mat Cost", "Sell Price", "RRR %"]) # Added RRR % here
     if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
     cols.append("Profit Margin%")
     if SHOW_PROFIT: cols.append("Profit (Silver)")
@@ -365,6 +394,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Sell City": st.column_config.TextColumn("Sell City", alignment="center"),
         "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "RRR %": st.column_config.TextColumn("RRR %", alignment="center"),
         "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
         "Profit (Silver)": st.column_config.NumberColumn("Profit (Silver)", format="%,d", alignment="center"),
