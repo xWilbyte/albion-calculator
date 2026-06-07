@@ -8,8 +8,7 @@ import pandas as pd
 from datetime import datetime, timezone 
 from concurrent.futures import ThreadPoolExecutor 
 
-# ================= UPDATED MAPPING FOR RRR =================
-# Maps category to the city that provides the +15% Return Rate bonus
+# ================= MAPPING FOR RRR =================
 RRR_BONUS_MAP = {
     "hide": "Martlock",
     "rock": "Bridgewatch",
@@ -20,22 +19,29 @@ RRR_BONUS_MAP = {
     "food": "Caerleon"
 }
 
-def get_rrr(city, category, use_focus):
+def get_rrr(city, category, use_focus, is_refining):
     """
-    Calculates Resource Return Rate. 
-    Applies the specific city bonus if the city matches the category map.
+    Calculates Resource Return Rate with corrected differentiation
+    between Refining and standard Crafting.
     """
-    # Use lowercase for consistent key matching
     category_key = category.lower() if category else ""
     bonus_city = RRR_BONUS_MAP.get(category_key)
     is_bonus_city = (city == bonus_city)
     
-    if use_focus:
-        # Base ~43.5% non-bonus / ~53.9% bonus
-        return 0.539 if is_bonus_city else 0.435
+    if is_refining:
+        # Refining Logic
+        if use_focus:
+            return 0.539 if is_bonus_city else 0.435
+        else:
+            return 0.367 if is_bonus_city else 0.153
     else:
-        # Base 15.3% non-bonus / ~28.0% bonus
-        return 0.280 if is_bonus_city else 0.153
+        # Crafting Logic (Items/Food/Potions)
+        if use_focus:
+            # 47.9% with Focus + Bonus, 43.5% without Bonus (or standard)
+            return 0.479 if is_bonus_city else 0.435
+        else:
+            # Standard base rates
+            return 0.280 if is_bonus_city else 0.153
 
 # ================= RESET FUNCTION =================
 def reset_defaults():
@@ -158,6 +164,7 @@ class RateLimiter:
 limiter = RateLimiter(1/150) 
 
 # ================= UTILS ================= 
+
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
@@ -252,8 +259,11 @@ def process_recipe(r, name_map, market_data):
 
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
+            # Determine if this is refining for RRR logic
+            is_refining = (CRAFT_TYPE == "refine")
+            
             # Dynamic Return Rate Calculation
-            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS)
+            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
             
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
@@ -405,7 +415,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_VOL: cols.append("Vol Sold (24h)")
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
-    if SHOW_RRR: cols.append("Return Rate") # Added to far right
+    if SHOW_RRR: cols.append("Return Rate") 
     
     display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
