@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 # ================= PAGE CONFIG & STYLING =================
-st.set_page_config(layout="wide", page_title="Albion Crafting Profit Calculator")
+st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
+# CSS to center align text in Dataframes
 st.markdown("""
     <style>
     div[data-testid="stDataFrame"] {
@@ -25,6 +26,10 @@ st.markdown("""
 # ================= SESSION STATE INIT =================
 if 'df' not in st.session_state:
     st.session_state.df = None
+if 'name_map' not in st.session_state:
+    st.session_state.name_map = {}
+if 'market_data' not in st.session_state:
+    st.session_state.market_data = {}
 
 # ================= SIDEBAR INPUTS =================
 st.sidebar.header("Config")
@@ -42,7 +47,7 @@ BASE_RETURN_RATE = 0.152
 FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.header("Filters")
-ALLOWED_TIERS = st.sidebar.multiselect("Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
+ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72)
 
 # ================= CONSTANTS & RATE LIMITER =================
@@ -160,11 +165,12 @@ def process_recipe(r, name_map, market_data):
     if pct < MIN_MARGIN or pct > IGNORE_MARGIN: return None
     if out_data.get('volume', 0) < MIN_DAILY_VOLUME: return None
 
-    focus_cost = int((r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) * r.get("yield", 1))
+    focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000)))
     
     return {
         "Tier": get_tier(r['output']),
         "Name": name_map.get(r['output'], r['output']),
+        "Inputs": r['inputs'], 
         "Cost": int(total_cost),
         "Price": int(gross_rev),
         "Price (24h)": int(out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX)),
@@ -181,12 +187,10 @@ st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
     try:
-        # Load items.json
         with open("items.json", "r", encoding="utf-8") as f:
             raw_items = json.load(f)
             root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {}
         
-        # Load formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
             name_data = json.load(f)
             name_lookup = {}
@@ -248,6 +252,8 @@ if st.button("Calculate"):
     with st.spinner('Fetching market data...'):
         market_data = fetch_market_data(lookup_ids)
     
+    st.session_state.name_map = name_map
+    st.session_state.market_data = market_data
     results = [f.result() for f in [ThreadPoolExecutor(max_workers=THREADS).submit(process_recipe, r, name_map, market_data) for r in recipes] if f.result()]
     st.session_state.df = pd.DataFrame(results)
 
@@ -255,19 +261,20 @@ if st.button("Calculate"):
 if st.session_state.df is not None and not st.session_state.df.empty:
     df = st.session_state.df
     
+    # --- TABLE DISPLAY ---
     if not USE_FOCUS:
-        df = df.drop(columns=["S/F", "Focus"], errors='ignore')
+        display_df = df.drop(columns=["S/F", "Focus", "Inputs"], errors='ignore')
         sort_col = "Margin%"
     else:
+        display_df = df.drop(columns=["Inputs"], errors='ignore')
         sort_col = "S/F"
         
-    if sort_col in df.columns:
-        df = df.sort_values(by=sort_col, ascending=False)
+    if sort_col in display_df.columns:
+        display_df = display_df.sort_values(by=sort_col, ascending=False)
         
     st.dataframe(
-        df, 
+        display_df, 
         width='stretch', 
-        height=800,
         hide_index=True,
         column_config={
             "Tier": st.column_config.NumberColumn("Tier", format="%d"),
@@ -278,5 +285,28 @@ if st.session_state.df is not None and not st.session_state.df.empty:
             "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"),
         }
     )
+
+    # --- MATERIAL BREAKDOWN ---
+    st.divider()
+    st.subheader("Detailed Recipes")
+    
+    for _, row in df.iterrows():
+        with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"):
+            mat_data = []
+            for item in row['Inputs']:
+                mat_id = item['id']
+                m_data = st.session_state.market_data.get(mat_id, {})
+                price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0)
+                
+                mat_data.append({
+                    "Material": st.session_state.name_map.get(mat_id, mat_id),
+                    "Quantity": item['count'],
+                    "Unit Cost": f"{int(price):,}",
+                    "Total Material Cost": f"{int(price * item['count']):,}",
+                    "Returnable": "No" if item['ignore_return'] else "Yes"
+                })
+            
+            st.table(pd.DataFrame(mat_data))
+
 elif st.session_state.df is not None and st.session_state.df.empty:
     st.warning("No items found.")
