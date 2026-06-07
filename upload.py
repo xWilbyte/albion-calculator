@@ -11,12 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
 
-# CSS updated to target the interactive dataframe header structure
 st.markdown(""" 
     <style> 
-    /* Force center alignment for dataframe headers (target div role="columnheader") */
-    [data-testid="stDataFrame"] div[role="columnheader"] { 
+    /* Force alignment for dataframe headers and cells */
+    div[data-testid="stDataFrame"] div[role="columnheader"], 
+    div[data-testid="stDataFrame"] div[role="gridcell"] { 
         justify-content: center !important; 
+        text-align: center !important; 
     } 
     /* Force center alignment for static tables (Recipes) */
     .stTable th, .stTable td { 
@@ -312,17 +313,20 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
     
-    # Define Column Configuration for Centering
-    col_config = {col: st.column_config.Column(col, alignment="center") for col in display_df.columns}
-    
-    # Override numeric columns with their specific formatting + centering
-    col_config.update({
-        "Tier": st.column_config.NumberColumn("Tier", format="%d", alignment="center"), 
+    # Use TextColumn for Name to enforce alignment more strictly
+    col_config = {
+        "Tier": st.column_config.NumberColumn("Tier", format="%d", alignment="center"),
+        "Name": st.column_config.TextColumn("Name", alignment="center"),
+        "Best City": st.column_config.TextColumn("Best City", alignment="center"),
         "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
+        "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
-        "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d", alignment="center"), 
-    })
+        "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d", alignment="center"),
+        "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
+        "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
+    }
 
     st.dataframe( 
         display_df, 
