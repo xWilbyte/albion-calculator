@@ -193,9 +193,9 @@ def process_recipe(r, name_map, market_data):
                 "Tier": get_tier(r['output']), 
                 "Name": name_map.get(r['output'], r['output']), 
                 "Inputs": r['inputs'],  
-                "Cost": int(total_cost), 
-                "Price": int(gross_rev), 
-                "Margin%": round(pct, 1), 
+                "Mat Cost": int(total_cost), 
+                "Mat Price": int(gross_rev), 
+                "Sell Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
                 "Vol(24h)": out_data.get('volume', 0),
@@ -289,7 +289,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     # Build list of columns to show
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
-    cols.extend(["Cost", "Price", "Margin%"])
+    cols.extend(["Mat Cost", "Mat Price", "Sell Margin%"])
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
     if SHOW_VOL: cols.append("Vol(24h)")
@@ -297,19 +297,20 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_MAT_AGE: cols.append("Mat Age")
     
     display_df = df[cols]
-    sort_col = "S/F" if USE_FOCUS else "Margin%"
+    sort_col = "S/F" if USE_FOCUS else "Sell Margin%"
         
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
         
     st.dataframe( 
         display_df, 
-        width='stretch', 
+        width=None, # Stretch will handle width
+        height=600,
         hide_index=True, 
         column_config={ 
             "Tier": st.column_config.NumberColumn("Tier", format="%d"), 
-            "Cost": st.column_config.NumberColumn("Cost", format="%,d"), 
-            "Price": st.column_config.NumberColumn("Price", format="%,d"), 
+            "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d"), 
+            "Mat Price": st.column_config.NumberColumn("Mat Price", format="%,d"), 
             "Focus": st.column_config.NumberColumn("Focus", format="%,d"), 
             "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"), 
         } 
