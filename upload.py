@@ -13,12 +13,18 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Force center alignment for headers and cells */
-    div[data-testid="stDataFrame"] div[role="columnheader"], 
-    div[data-testid="stDataFrame"] div[role="gridcell"] { 
-        justify-content: center !important; 
+    /* Force header alignment using a more aggressive selector */
+    [data-testid="stDataFrame"] [role="columnheader"] {
+        display: flex !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+    
+    /* Center alignment for standard static tables (Recipes) */
+    .stTable th, .stTable td { 
         text-align: center !important; 
     } 
+    
     /* Style the Calculate button */
     div.stButton > button { 
         width: 100%; 
@@ -42,7 +48,6 @@ if 'market_data' not in st.session_state:
 # ================= SIDEBAR INPUTS ================= 
 st.sidebar.header("Config") 
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower()  
-
 CRAFT_CITIES = st.sidebar.multiselect("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"], default=["Bridgewatch"]) 
 STATION_COST = st.sidebar.number_input("Station Cost", value=500) 
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Volume (24h)", value=100) 
@@ -293,7 +298,6 @@ if st.button("Calculate"):
 if st.session_state.df is not None and not st.session_state.df.empty: 
     df = st.session_state.df 
     
-    # --- TABLE DISPLAY --- 
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
     cols.extend(["Mat Cost", "Sell Price", "Profit Margin%"])
@@ -323,8 +327,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
 
-    # Center the table on the page using columns
-    col_left, col_mid, col_right = st.columns([0.5, 9, 0.5])
+    col_left, col_mid, col_right = st.columns([0.1, 9.8, 0.1])
     with col_mid:
         st.dataframe( 
             display_df, 
@@ -334,7 +337,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
             column_config=col_config
         ) 
 
-    # --- MATERIAL BREAKDOWN --- 
     st.divider() 
     st.subheader("Recipes") 
     
