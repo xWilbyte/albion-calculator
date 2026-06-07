@@ -283,7 +283,6 @@ if st.button("Click to Calculate", use_container_width=True):
             u_name = item.get("@uniquename") 
             if not u_name: continue 
             
-            # --- FILTER ROCK/STONE AT TOP ---
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
             if "rock" in cat_tag or "stone" in cat_tag or "rock" in subcat or "stone" in subcat:
@@ -323,6 +322,7 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
+                    # Standardized to ItemName@Level format for API compatibility
                     ench_output = f"{u_name}@{lvl}"
                     
                     base_name = name_lookup.get(u_name, u_name) 
