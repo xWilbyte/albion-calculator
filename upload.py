@@ -32,10 +32,7 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Main Layout Padding */
     [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
-    
-    /* Table Styling */
     [data-testid="stDataFrame"] [role="columnheader"], 
     [data-testid="stDataFrame"] [role="gridcell"] {
         justify-content: center !important;
@@ -43,7 +40,6 @@ st.markdown("""
     }
     .stTable th, .stTable td { text-align: center !important; } 
 
-    /* Calculate Button (Main Area) */
     [data-testid="stMainBlockContainer"] div.stButton > button { 
         width: 100% !important; 
         height: 45px !important; 
@@ -56,7 +52,6 @@ st.markdown("""
         margin-bottom: 20px !important;
     } 
 
-    /* Reset Button (Sidebar - 20% thinner) */
     [data-testid="stSidebar"] div.stButton > button { 
         width: 100% !important; 
         height: 36px !important; 
@@ -80,19 +75,10 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 st.sidebar.markdown("## Config") 
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
-# Define Local Bonuses
-LOCAL_BONUSES = {
-    "Brecilien": {"potion": 15},
-    "Caerleon": {"food": 15}
-}
-
-# Define Refining Bonuses
+LOCAL_BONUSES = {"Brecilien": {"potion": 15}, "Caerleon": {"food": 15}}
 REFINING_BONUSES = {
-    "Martlock": {"hide": 10},
-    "Lymhurst": {"wood": 10},
-    "Fort Sterling": {"ore": 10},
-    "Bridgewatch": {"stone": 10},
-    "Thetford": {"fiber": 10}
+    "Martlock": {"hide": 10}, "Lymhurst": {"wood": 10}, "Fort Sterling": {"ore": 10},
+    "Bridgewatch": {"stone": 10}, "Thetford": {"fiber": 10}
 }
 
 with st.sidebar.expander("General Settings", expanded=True):
@@ -106,8 +92,8 @@ with st.sidebar.expander("General Settings", expanded=True):
 with st.sidebar.expander("Focus Settings"):
     USE_FOCUS = st.checkbox("Use Focus", value=False, key="use_focus") 
     FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000, key="focus_eff") 
-    BASE_RETURN_RATE = 0.152 # For crafting
-    BASE_REFINE_RATE = 0.18 # For refining
+    BASE_RETURN_RATE = 0.152
+    BASE_REFINE_RATE = 0.18
     FOCUS_RETURN_RATE = 0.435 
 
 with st.sidebar.expander("Filters"):
@@ -122,7 +108,6 @@ with st.sidebar.expander("Display Options"):
     SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False, key="show_avg_price") 
     SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
 
-# Reset Button
 st.sidebar.button("Restore Default Settings", on_click=reset_defaults, use_container_width=True)
 
 # ================= CONSTANTS & RATE LIMITER ================= 
@@ -155,11 +140,8 @@ def to_list(x):
 def get_tier(id_str): 
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
-    
-    # Check for level/enchantment
     ench_match = re.search(r"[@_]([1-4])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
-    
     return tier
 
 def get_hours_ago(date_str): 
@@ -230,7 +212,6 @@ def process_recipe(r, name_map, market_data):
     best_profit = -999999999
     
     for craft_city in CRAFT_CITIES: 
-        # Calculate Return Rates
         if CRAFT_TYPE == "refine":
             bonus = REFINING_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
             total_bonus = 18 + bonus 
@@ -315,7 +296,6 @@ if st.button("Click to Calculate", use_container_width=True):
             u_name = item.get("@uniquename") 
             if not u_name: continue 
             
-            # Determine if we should process this item
             is_match = False
             if CRAFT_TYPE == "refine":
                 if item.get("@craftingcategory") == "refining" or item.get("@shopsubcategory1") == "refinedresources":
@@ -351,15 +331,16 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Correct ID construction: Refined resources require _LEVEL prefix, gear uses @
                     is_refined = item.get("@shopsubcategory1") == "refinedresources"
                     if is_refined:
                         ench_output = f"{u_name}_LEVEL{lvl}@{lvl}"
                     else:
                         ench_output = f"{u_name}@{lvl}"
                     
+                    # Fix: Ensure name is unique for the enchantment level
                     base_name = name_lookup.get(u_name, u_name) 
-                    name_map[ench_output] = base_name
+                    name_map[ench_output] = f"{base_name} (+{lvl})" 
+                    
                     for c in to_list(ench.get("craftingrequirements")): 
                         if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
 
