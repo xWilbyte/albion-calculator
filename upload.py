@@ -80,6 +80,12 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 st.sidebar.markdown("## Config") 
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
+# Define Local Bonuses here for easy updates
+LOCAL_BONUSES = {
+    "Brecilien": {"potion": 15},
+    "Caerleon": {"food": 15}
+}
+
 with st.sidebar.expander("General Settings", expanded=True):
     CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food"], key="craft_type").lower()  
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -209,9 +215,17 @@ def fetch_market_data(ids):
 def process_recipe(r, name_map, market_data): 
     best_result = None 
     best_profit = -999999999
-    current_return = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE 
+    
+    # Calculate Base Return Rate Sum (as percentage)
+    base_return_pct = (FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE) * 100
 
     for craft_city in CRAFT_CITIES: 
+        # Calculate Local Bonus for this city and item type
+        local_bonus_pct = LOCAL_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
+        
+        # Calculate effective return rate: 1 - 1/(1 + (Bonus_Sum/100))
+        current_return = 1 - (1 / (1 + ((base_return_pct + local_bonus_pct) / 100)))
+
         for sell_city in SELL_CITIES:
             out_key = r['output'] 
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
@@ -293,7 +307,15 @@ if st.button("Click to Calculate", use_container_width=True):
                     raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                     inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
                     if inputs: 
-                        recipes.append({"output": output, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
+                        recipes.append({
+                            "output": output, 
+                            "inputs": inputs, 
+                            "silver_cost": int(c.get("@silver", 0)), 
+                            "yield": int(c.get("@amountcrafted", 1)), 
+                            "focus_cost": int(c.get("@craftingfocus", 0)), 
+                            "item_value": val,
+                            "slot_type": item.get("@slottype") # Capture slot type here
+                        }) 
                 for c in reqs: 
                     if c: add_recipe(c, u_name, base_val) 
                 enchant = item.get("enchantments") 
@@ -312,7 +334,6 @@ if st.button("Click to Calculate", use_container_width=True):
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
     
-    # IMPROVED CONCURRENCY LOGIC
     with ThreadPoolExecutor(max_workers=THREADS) as executor:
         futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
         results = [f.result() for f in futures if f.result()]
