@@ -13,14 +13,10 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Force alignment for dataframe headers and cells */
+    /* Force center alignment for headers and cells */
     div[data-testid="stDataFrame"] div[role="columnheader"], 
     div[data-testid="stDataFrame"] div[role="gridcell"] { 
         justify-content: center !important; 
-        text-align: center !important; 
-    } 
-    /* Force center alignment for static tables (Recipes) */
-    .stTable th, .stTable td { 
         text-align: center !important; 
     } 
     /* Style the Calculate button */
@@ -313,7 +309,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
     
-    # Use TextColumn for Name to enforce alignment more strictly
     col_config = {
         "Tier": st.column_config.NumberColumn("Tier", format="%d", alignment="center"),
         "Name": st.column_config.TextColumn("Name", alignment="center"),
@@ -328,13 +323,16 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
 
-    st.dataframe( 
-        display_df, 
-        use_container_width=True, 
-        height=600,
-        hide_index=True, 
-        column_config=col_config
-    ) 
+    # Center the table on the page using columns
+    col_left, col_mid, col_right = st.columns([0.5, 9, 0.5])
+    with col_mid:
+        st.dataframe( 
+            display_df, 
+            use_container_width=True, 
+            height=600,
+            hide_index=True, 
+            column_config=col_config
+        ) 
 
     # --- MATERIAL BREAKDOWN --- 
     st.divider() 
