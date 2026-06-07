@@ -307,6 +307,13 @@ if st.button("Click to Calculate", use_container_width=True):
             
             def add_recipe(c, output, val): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
+                
+                # Faction check for Refine
+                if CRAFT_TYPE == "refine":
+                    for r in raw_res:
+                        if "FACTION" in get_id(r).upper():
+                            return 
+
                 inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
                 if inputs: 
                     recipes.append({
