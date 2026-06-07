@@ -149,7 +149,7 @@ def fetch_market_data(ids):
 # ================= PROCESS RECIPE ================= 
 def process_recipe(r, name_map, market_data): 
     best_result = None 
-    best_profit = -float('inf') 
+    best_profit = -999999999
     current_return = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE 
 
     for city in CRAFT_CITIES: 
@@ -195,7 +195,9 @@ def process_recipe(r, name_map, market_data):
                 "Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
-                "Vol(24h)": out_data.get('volume', 0) 
+                "Vol(24h)": out_data.get('volume', 0),
+                "Item Age": format_age(out_hours),
+                "Mat Age": format_age(max_mat_hours)
             } 
     
     return best_result 
