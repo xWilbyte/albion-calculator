@@ -164,11 +164,19 @@ def process_recipe(r, name_map, market_data):
 st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
+    # Load Item Data
     try:
         with open("items.json", "r", encoding="utf-8") as f:
             root = json.load(f)["items"]
+        with open("formattedItems.json", "r", encoding="utf-8") as f:
+            name_data = json.load(f)
+            # Map unique name to display name
+            display_name_map = {}
+            for item in name_data:
+                key = item.get("LocalizationNameVariable", "").replace("@", "")
+                display_name_map[key] = item.get("LocalizedNames", {}).get("EN-US", key)
     except FileNotFoundError:
-        st.error("items.json missing!")
+        st.error("Required JSON files missing (items.json or formattedItems.json)!")
         st.stop()
 
     recipes = []
@@ -177,9 +185,11 @@ if st.button("Calculate"):
     for cat, items in root.items():
         if not isinstance(items, list): continue
         for item in items:
-            name = item.get("localizednames", {}).get("EN-US", item["@uniquename"])
-            name_map[item["@uniquename"]] = name
-            tier_match = re.match(r"T([1-8])_", item["@uniquename"])
+            u_name = item["@uniquename"]
+            base_name = display_name_map.get(u_name, u_name)
+            name_map[u_name] = base_name
+            
+            tier_match = re.match(r"T([1-8])_", u_name)
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue
 
             if item.get("@craftingcategory") == CRAFT_TYPE and CRAFT_TYPE in ("food", "potion"):
@@ -195,13 +205,13 @@ if st.button("Calculate"):
                                         "item_value": val})
 
                 for c in reqs:
-                    if c: add_recipe(c, item["@uniquename"], base_val)
+                    if c: add_recipe(c, u_name, base_val)
                 enchant = item.get("enchantments")
                 if enchant:
                     for ench in to_list(enchant.get("enchantment")):
                         lvl = int(ench.get("@enchantmentlevel", 0))
-                        ench_output = f"{item['@uniquename']}@{lvl}"
-                        name_map[ench_output] = f"{name} (Ench {lvl})"
+                        ench_output = f"{u_name}@{lvl}"
+                        name_map[ench_output] = f"{base_name} (Ench {lvl})"
                         for c in to_list(ench.get("craftingrequirements")):
                             if c: add_recipe(c, ench_output, base_val * (2 ** lvl))
 
