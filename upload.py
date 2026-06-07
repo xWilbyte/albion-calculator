@@ -315,29 +315,48 @@ if st.button("Click to Calculate", use_container_width=True):
         with open("items.json", "r", encoding="utf-8") as f: 
             raw_items = json.load(f) 
             root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {} 
+            
         with open("formattedItems.json", "r", encoding="utf-8") as f: 
             name_data = json.load(f) 
             name_lookup = {} 
             if isinstance(name_data, list): 
                 for item in name_data: 
                     if item is None or not isinstance(item, dict): continue 
+                    
+                    loc_names = item.get("LocalizedNames") 
+                    en_name = loc_names.get("EN-US") if isinstance(loc_names, dict) else None
+                    
+                    # 1. Map by UniqueName directly (Most reliable approach)
+                    unique_name = item.get("UniqueName")
+                    if unique_name and en_name:
+                        name_lookup[unique_name] = en_name
+                        
+                    # 2. Fallback to LocalizationNameVariable just in case
                     var_name = item.get("LocalizationNameVariable") 
-                    if var_name and isinstance(var_name, str): 
+                    if var_name and isinstance(var_name, str) and en_name: 
                         key = var_name.replace("@ITEMS_", "").replace("@", "") 
-                        loc_names = item.get("LocalizedNames") 
-                        name_lookup[key] = loc_names.get("EN-US", key) if isinstance(loc_names, dict) else key 
+                        if key not in name_lookup:
+                            name_lookup[key] = en_name
+                            
     except Exception as e: 
         st.error(f"Error loading JSON: {e}") 
         st.stop() 
 
     recipes = [] 
     name_map = {} 
+    
     for cat, items in root.items(): 
         if not isinstance(items, list): continue 
         for item in items: 
             if not isinstance(item, dict): continue 
             u_name = item.get("@uniquename") 
             if not u_name: continue 
+            
+            # --- FIX: Grab display names BEFORE checking if it's a valid recipe match ---
+            # This ensures your raw inputs (like T3_ROCK) get properly translated later!
+            base_n = get_base_name(u_name)
+            if base_n not in name_map:
+                name_map[base_n] = name_lookup.get(base_n, u_name)
             
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
@@ -350,9 +369,6 @@ if st.button("Click to Calculate", use_container_width=True):
                 is_match = True
             
             if not is_match: continue
-
-            base_n = get_base_name(u_name)
-            name_map[base_n] = name_lookup.get(base_n, u_name)
             
             tier_match = re.match(r"T([1-8])_", u_name) 
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
