@@ -296,7 +296,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
     
-    display_df = df[cols]
+    display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Sell Margin%"
         
     if sort_col in display_df.columns: 
@@ -304,7 +304,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         
     st.dataframe( 
         display_df, 
-        width=None, # Stretch will handle width
+        width=None,
         height=600,
         hide_index=True, 
         column_config={ 
