@@ -34,7 +34,7 @@ if 'market_data' not in st.session_state:
 # ================= SIDEBAR INPUTS =================
 st.sidebar.header("Config")
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower() 
-CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"])
+CRAFT_CITIES = st.sidebar.multiselect("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"], default=["Bridgewatch"])
 STATION_COST = st.sidebar.number_input("Station Cost", value=500)
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Daily Volume", value=100)
 MIN_MARGIN = st.sidebar.number_input("Min Margin %", value=10.0, step=1.0)
@@ -101,10 +101,12 @@ def get_id(x):
 def fetch_market_data(ids):
     data_map = {i: {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} for i in ids}
     unique_ids = list(set(ids))
+    city_param = ",".join(CRAFT_CITIES)
+    
     for i in range(0, len(unique_ids), BATCH_SIZE):
         limiter.wait()
         chunk = unique_ids[i : i + BATCH_SIZE]
-        url = f"{API_URL}{','.join(chunk)}?locations={CRAFT_CITY}"
+        url = f"{API_URL}{','.join(chunk)}?locations={city_param}"
         try:
             r = requests.get(url, timeout=30)
             if r.status_code == 200:
@@ -117,14 +119,14 @@ def fetch_market_data(ids):
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE):
         limiter.wait()
         chunk = unique_ids[i : i + HIST_BATCH_SIZE]
-        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={CRAFT_CITY}&time-scale=24"
+        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}&time-scale=24"
         try:
             r = requests.get(url, timeout=30)
             if r.status_code == 200:
                 resp = r.json()
                 if isinstance(resp, list):
                     for entry in resp:
-                        if entry.get("location") == CRAFT_CITY:
+                        if entry.get("location") in CRAFT_CITIES:
                             item_id = entry.get("item_id")
                             data_points = entry.get("data", [])
                             if not data_points or not item_id or item_id not in data_map: continue
@@ -186,6 +188,10 @@ def process_recipe(r, name_map, market_data):
 st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
+    if not CRAFT_CITIES:
+        st.error("Please select at least one city.")
+        st.stop()
+        
     try:
         with open("items.json", "r", encoding="utf-8") as f:
             raw_items = json.load(f)
@@ -290,11 +296,9 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     st.divider()
     st.subheader("Detailed Recipes")
     
-    # ADDED: Search Box for Filtering
     search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...")
     
     for _, row in df.iterrows():
-        # Only show expanders that match the search term
         if search_term.lower() in row['Name'].lower():
             with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"):
                 mat_data = []
