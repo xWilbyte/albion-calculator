@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 # ================= PAGE CONFIG & STYLING =================
-st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
+st.set_page_config(layout="wide", page_title="Albion Crafting Profit Calculator")
 
 # CSS to center align text in Dataframes
 st.markdown("""
@@ -43,7 +43,7 @@ BASE_RETURN_RATE = 0.152
 FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.header("Filters")
-ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
+ALLOWED_TIERS = st.sidebar.multiselect("Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8])
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72)
 
 # ================= CONSTANTS & RATE LIMITER =================
