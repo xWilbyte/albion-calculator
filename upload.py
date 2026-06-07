@@ -304,7 +304,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         
     st.dataframe( 
         display_df, 
-        width=None, # Streamlit defaults to 'stretch' if omitted or None is not passed, but passing the value 'stretch' is safer
+        use_container_width=True, 
         height=600,
         hide_index=True, 
         column_config={ 
@@ -315,6 +315,35 @@ if st.session_state.df is not None and not st.session_state.df.empty:
             "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"), 
         } 
     ) 
+
+    # --- MATERIAL BREAKDOWN --- 
+    st.divider() 
+    st.subheader("Detailed Recipes") 
+    
+    search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...") 
+    
+    for _, row in df.iterrows(): 
+        if search_term.lower() in row['Name'].lower(): 
+            city_display = f" | Best City: {row['Best City']}" if len(CRAFT_CITIES) > 1 else ""
+            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']}){city_display}"): 
+                mat_data = [] 
+                for item in row['Inputs']: 
+                    mat_id = item['id'] 
+                    m_data = st.session_state.market_data.get(mat_id, {}).get(row['Best City'], {}) 
+                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
+                    
+                    mat_data.append({ 
+                        "Tier": get_tier(mat_id), 
+                        "Material": st.session_state.name_map.get(mat_id, mat_id), 
+                        "Quantity": item['count'], 
+                        "Unit Cost": f"{int(price):,}", 
+                        "Total Material Cost": f"{int(price * item['count']):,}" 
+                    }) 
+                
+                st.table(pd.DataFrame(mat_data)) 
+
+elif st.session_state.df is not None and st.session_state.df.empty: 
+    st.warning("No items found.")
 
     # --- MATERIAL BREAKDOWN --- 
     st.divider() 
