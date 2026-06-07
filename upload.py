@@ -280,7 +280,7 @@ def process_recipe(r, name_map, market_data):
     return best_result 
 
 # ================= MAIN ================= 
-st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
+st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_ところがTrue) 
 
 if st.button("Click to Calculate", use_container_width=True): 
     if not CRAFT_CITIES or not SELL_CITIES: 
@@ -351,8 +351,13 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Preserve exact ID format for API requests
-                    ench_output = f"{u_name}@{lvl}" 
+                    # Correct ID construction: Refined resources require _LEVEL prefix, gear uses @
+                    is_refined = item.get("@shopsubcategory1") == "refinedresources"
+                    if is_refined:
+                        ench_output = f"{u_name}_LEVEL{lvl}@{lvl}"
+                    else:
+                        ench_output = f"{u_name}@{lvl}"
+                    
                     base_name = name_lookup.get(u_name, u_name) 
                     name_map[ench_output] = base_name
                     for c in to_list(ench.get("craftingrequirements")): 
