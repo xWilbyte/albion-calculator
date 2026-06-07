@@ -13,6 +13,10 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
+    /* Reduce top padding to pull title and config up */
+    [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
+    [data-testid="stSidebarContent"] { padding-top: 1rem; }
+
     /* Force header and cell alignment */
     [data-testid="stDataFrame"] [role="columnheader"], 
     [data-testid="stDataFrame"] [role="gridcell"] {
