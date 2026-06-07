@@ -21,8 +21,8 @@ st.markdown("""
     th, td { 
         text-align: center !important; 
     } 
-    /* Style the Calculate button to be large and prominent */
-    div.stButton > button { 
+    /* Style the sidebar button to be large and prominent */
+    [data-testid="stSidebar"] button { 
         width: 100%; 
         height: 50px; 
         font-weight: bold; 
@@ -63,6 +63,9 @@ IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0)
 SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=True) 
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=True) 
 SHOW_VOL = st.sidebar.checkbox("Show Vol(24h)", value=True) 
+
+# Moved button to sidebar
+calculate_btn = st.sidebar.button("Calculate")
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -216,11 +219,10 @@ def process_recipe(r, name_map, market_data):
     return best_result 
 
 # ================= MAIN ================= 
-# Improved Header Layout 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 st.divider() 
 
-if st.button("Calculate"): 
+if calculate_btn: 
     if not CRAFT_CITIES: 
         st.error("Please select at least one city.") 
         st.stop() 
@@ -298,7 +300,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     df = st.session_state.df 
     
     # --- TABLE DISPLAY --- 
-    # Build list of columns to show
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
     cols.extend(["Mat Cost", "Sell Price", "Profit Margin%"])
