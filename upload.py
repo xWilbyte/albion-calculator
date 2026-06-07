@@ -156,9 +156,7 @@ def normalize_id(id_str):
     Transforms _LEVEL# to _LEVEL#@# for API compatibility (e.g. T4_PLANKS_LEVEL4 -> T4_PLANKS_LEVEL4@4)
     """
     if not id_str: return id_str
-    # If already has @, assume it's valid
     if "@" in id_str: return id_str
-    # Append @[level] to the _LEVEL[level] string
     return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
 
 def get_base_name(id_str):
@@ -279,8 +277,27 @@ def process_recipe(r, name_map, market_data):
             if profit > best_profit: 
                 best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
+                
+                # --- ALBION STONE UI FIX ---
+                out_tier = get_tier(r['output'])
+                out_name = name_map.get(get_base_name(r['output']), r['output'])
+                
+                # If crafting a rock product, find the max enchantment level of the raw rock input
+                if r.get("category") == "rock":
+                    input_ench = 0
+                    for inp in r['inputs']:
+                        match = re.search(r"@([1-4])", inp['id'])
+                        if match:
+                            input_ench = max(input_ench, int(match.group(1)))
+                    
+                    # Artificially tweak the UI display to show the stone enchant tier
+                    if input_ench > 0:
+                        out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
+                        out_name = f"{out_name} (from .{input_ench})"
+                # ---------------------------
+
                 best_result = { 
-                    "Craft City": craft_city, "Sell City": sell_city, "Tier": get_tier(r['output']), "Name": name_map.get(get_base_name(r['output']), r['output']), 
+                    "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
@@ -347,19 +364,17 @@ if st.button("Click to Calculate", use_container_width=True):
             def add_recipe(c, output, val, category): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 
-                # Faction check
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
                         if "FACTION" in get_id(r).upper():
                             return 
 
-                # Inputs normalized via get_id()
                 inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
                 
                 if inputs: 
                     recipes.append({
-                        "output": normalize_id(output), # Output normalized
-                        "category": category, # Added category for RRR calculation
+                        "output": normalize_id(output), 
+                        "category": category, 
                         "inputs": inputs, 
                         "silver_cost": int(c.get("@silver", 0)), 
                         "yield": int(c.get("@amountcrafted", 1)), 
@@ -374,7 +389,6 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Creates the format: T4_PLANKS_LEVEL4
                     ench_output = f"{u_name}_LEVEL{lvl}" 
                     
                     for c in to_list(ench.get("craftingrequirements")): 
