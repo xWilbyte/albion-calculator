@@ -153,6 +153,7 @@ def fetch_market_data(ids):
                             item_id = entry.get("item_id") 
                             data_points = entry.get("data", []) 
                             if not data_points or not item_id: continue 
+                            if item_id not in data_map: item_id not in data_map
                             if item_id not in data_map: data_map[item_id] = {} 
                             if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
                             
@@ -192,6 +193,10 @@ def process_recipe(r, name_map, market_data):
         station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0) 
         total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
         gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
+        
+        # Avg Revenue calculation using hist_price
+        avg_rev = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
+        
         profit = gross_rev - total_cost 
         pct = (profit / total_cost * 100) if total_cost > 0 else 0 
         
@@ -209,7 +214,7 @@ def process_recipe(r, name_map, market_data):
                 "Inputs": r['inputs'],  
                 "Mat Cost": int(total_cost), 
                 "Sell Price": int(gross_rev), 
-                "Avg Price": int(out_data.get('hist_price', 0)),
+                "Avg Price": int(avg_rev),
                 "Profit Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
