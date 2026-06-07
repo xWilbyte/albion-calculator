@@ -164,19 +164,15 @@ def process_recipe(r, name_map, market_data):
 st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
-    # Load Item Data
     try:
         with open("items.json", "r", encoding="utf-8") as f:
             root = json.load(f)["items"]
         with open("formattedItems.json", "r", encoding="utf-8") as f:
-            name_data = json.load(f)
-            # Map unique name to display name
-            display_name_map = {}
-            for item in name_data:
-                key = item.get("LocalizationNameVariable", "").replace("@", "")
-                display_name_map[key] = item.get("LocalizedNames", {}).get("EN-US", key)
+            formatted_items = json.load(f)
+            # Create a lookup map: "@ITEMS_ID" -> "Display Name"
+            name_lookup = {item["LocalizationNameVariable"].replace("@", ""): item["LocalizedNames"].get("EN-US", item["LocalizationNameVariable"]) for item in formatted_items}
     except FileNotFoundError:
-        st.error("Required JSON files missing (items.json or formattedItems.json)!")
+        st.error("JSON files (items.json or formattedItems.json) missing!")
         st.stop()
 
     recipes = []
@@ -186,8 +182,9 @@ if st.button("Calculate"):
         if not isinstance(items, list): continue
         for item in items:
             u_name = item["@uniquename"]
-            base_name = display_name_map.get(u_name, u_name)
-            name_map[u_name] = base_name
+            # Look up the real name, fallback to unique name if not found
+            name = name_lookup.get(u_name, u_name)
+            name_map[u_name] = name
             
             tier_match = re.match(r"T([1-8])_", u_name)
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue
@@ -211,7 +208,7 @@ if st.button("Calculate"):
                     for ench in to_list(enchant.get("enchantment")):
                         lvl = int(ench.get("@enchantmentlevel", 0))
                         ench_output = f"{u_name}@{lvl}"
-                        name_map[ench_output] = f"{base_name} (Ench {lvl})"
+                        name_map[ench_output] = f"{name} (Ench {lvl})"
                         for c in to_list(ench.get("craftingrequirements")):
                             if c: add_recipe(c, ench_output, base_val * (2 ** lvl))
 
@@ -228,9 +225,13 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     
     if not USE_FOCUS:
         df = df.drop(columns=["S/F", "Focus"], errors='ignore')
-        df = df.sort_values(by="Margin%", ascending=False)
+        sort_col = "Margin%"
     else:
-        df = df.sort_values(by="S/F", ascending=False)
+        sort_col = "S/F"
+        
+    # Safety Check: only sort if column exists
+    if sort_col in df.columns:
+        df = df.sort_values(by=sort_col, ascending=False)
         
     st.dataframe(
         df, 
