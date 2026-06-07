@@ -335,8 +335,8 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                     mat_data.append({ 
                         "Tier": get_tier(mat_id), 
                         "Material": st.session_state.name_map.get(mat_id, mat_id), 
-                        "Quantity": item['count'], 
                         "Unit Cost": f"{int(price):,}", 
+                        "Quantity": item['count'], 
                         "Total Material Cost": f"{int(price * item['count']):,}" 
                     }) 
                 
