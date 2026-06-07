@@ -11,14 +11,19 @@ from concurrent.futures import ThreadPoolExecutor
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
 
-# CSS for button and general table container
+# CSS for button, dataframe headers, and static tables
 st.markdown(""" 
     <style> 
-    /* Force center alignment on static tables */
+    /* Force center alignment for dataframe headers */
+    [data-testid="stDataFrame"] th { 
+        text-align: center !important; 
+        justify-content: center !important;
+    } 
+    /* Force center alignment for static tables (Recipes) */
     .stTable th, .stTable td { 
         text-align: center !important; 
     } 
-    /* Style the Calculate button to be large and prominent */
+    /* Style the Calculate button */
     div.stButton > button { 
         width: 100%; 
         height: 50px; 
