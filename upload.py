@@ -62,6 +62,10 @@ def to_list(x):
     if isinstance(x, list): return x
     return [x]
 
+def get_tier(id_str):
+    match = re.search(r"T([1-8])", id_str)
+    return int(match.group(1)) if match else 0
+
 def get_hours_ago(date_str):
     if date_str == "N/A": return 999
     try:
@@ -148,6 +152,7 @@ def process_recipe(r, name_map, market_data):
     focus_cost = int((r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) * r.get("yield", 1))
     
     return {
+        "Tier": get_tier(r['output']),
         "Name": name_map.get(r['output'], r['output']),
         "Cost": int(total_cost),
         "Price": int(gross_rev),
@@ -165,37 +170,21 @@ st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
     try:
-        # Load items.json
         with open("items.json", "r", encoding="utf-8") as f:
             raw_items = json.load(f)
             root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {}
         
-        # Load formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
             name_data = json.load(f)
-            
-            # --- DEBUG: Uncomment to see the structure of your JSON if it keeps failing ---
-            # st.write("Preview of JSON entry 0:")
-            # st.json(name_data[0] if name_data and isinstance(name_data, list) else name_data)
-            
             name_lookup = {}
             if isinstance(name_data, list):
                 for item in name_data:
-                    # Skip null entries
-                    if item is None or not isinstance(item, dict): 
-                        continue
-                    
+                    if item is None or not isinstance(item, dict): continue
                     var_name = item.get("LocalizationNameVariable")
                     if var_name and isinstance(var_name, str):
-                        # Clean key
                         key = var_name.replace("@ITEMS_", "").replace("@", "")
-                        
-                        # Get localized names safely
                         loc_names = item.get("LocalizedNames")
-                        if isinstance(loc_names, dict):
-                            name_lookup[key] = loc_names.get("EN-US", key)
-                        else:
-                            name_lookup[key] = key
+                        name_lookup[key] = loc_names.get("EN-US", key) if isinstance(loc_names, dict) else key
     except Exception as e:
         st.error(f"Error loading JSON: {e}")
         st.stop()
@@ -266,7 +255,9 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         df, 
         width='stretch', 
         height=800,
+        hide_index=True,  # Removes the ID box column
         column_config={
+            "Tier": st.column_config.NumberColumn("Tier", format="%d"),
             "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
             "Price": st.column_config.NumberColumn("Price", format="%,d"),
             "Price (24h)": st.column_config.NumberColumn("Price (24h)", format="%,d"),
