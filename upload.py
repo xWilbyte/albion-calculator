@@ -129,15 +129,20 @@ class RateLimiter:
 limiter = RateLimiter(1/150) 
 
 # ================= UTILS ================= 
+
 def normalize_id(id_str):
-    """Converts LEVEL format to @ format for API compatibility."""
-    if "_LEVEL" in id_str:
-        return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
-    return id_str
+    """
+    Transforms _LEVEL# to _LEVEL#@# for API compatibility (e.g. T4_PLANKS_LEVEL4 -> T4_PLANKS_LEVEL4@4)
+    """
+    if not id_str: return id_str
+    # If already has @, assume it's valid
+    if "@" in id_str: return id_str
+    # Append @[level] to the _LEVEL[level] string
+    return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
 
 def get_base_name(id_str):
     """Removes suffix for name lookup."""
-    return re.sub(r"(@\d+|(_LEVEL\d+))", "", id_str)
+    return re.sub(r"(@\d+|(_LEVEL\d+(@\d+)?))", "", id_str)
 
 def to_list(x): 
     if x is None: return [] 
@@ -164,7 +169,7 @@ def format_age(hours): return "N/A" if hours == 999 else f"{hours}h"
 def get_id(x): 
     if not isinstance(x, dict): return None 
     val = x.get("@uniquename") or x.get("id")
-    if val: return normalize_id(val)
+    if val: return normalize_id(val) 
     return None
 
 # ================= MARKET FETCH ================= 
@@ -327,11 +332,16 @@ if st.button("Click to Calculate", use_container_width=True):
                         if "FACTION" in get_id(r).upper():
                             return 
 
+                # Inputs normalized via get_id()
                 inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
+                
                 if inputs: 
                     recipes.append({
-                        "output": normalize_id(output), "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), 
-                        "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), 
+                        "output": normalize_id(output), # Output normalized
+                        "inputs": inputs, 
+                        "silver_cost": int(c.get("@silver", 0)), 
+                        "yield": int(c.get("@amountcrafted", 1)), 
+                        "focus_cost": int(c.get("@craftingfocus", 0)), 
                         "item_value": val
                     }) 
 
@@ -342,7 +352,7 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Use unique ID format, already normalized by add_recipe
+                    # Creates the format: T4_PLANKS_LEVEL4
                     ench_output = f"{u_name}_LEVEL{lvl}" 
                     
                     for c in to_list(ench.get("craftingrequirements")): 
