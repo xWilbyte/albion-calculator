@@ -108,8 +108,12 @@ def to_list(x):
     return [x] 
 
 def get_tier(id_str): 
-    match = re.search(r"T([1-8])", id_str) 
-    return int(match.group(1)) if match else 0 
+    match = re.search(r"T([1-8])(@([1-3]))?", id_str) 
+    if match: 
+        tier = match.group(1) 
+        ench = match.group(3) 
+        return f"{tier}.{ench}" if ench else tier 
+    return "0" 
 
 def get_hours_ago(date_str): 
     if date_str == "N/A": return 999 
@@ -300,7 +304,9 @@ if st.button("Calculate"):
                         lvl = int(ench.get("@enchantmentlevel", 0)) 
                         ench_output = f"{u_name}@{lvl}" 
                         base_name = name_lookup.get(u_name, u_name) 
-                        name_map[ench_output] = f"{base_name} (Ench {lvl})" 
+                        tier_match_ench = re.match(r"T([1-8])_", u_name) 
+                        tier_str = tier_match_ench.group(1) if tier_match_ench else "0" 
+                        name_map[ench_output] = f"{base_name} {tier_str}.{lvl}" 
                         for c in to_list(ench.get("craftingrequirements")): 
                             if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
 
@@ -335,7 +341,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
     
     col_config = {
-        "Tier": st.column_config.NumberColumn("Tier", format="%d", alignment="center"),
+        "Tier": st.column_config.TextColumn("Tier", alignment="center"),
         "Name": st.column_config.TextColumn("Name", alignment="center"),
         "Craft City": st.column_config.TextColumn("Craft City", alignment="center"),
         "Sell City": st.column_config.TextColumn("Sell City", alignment="center"),
