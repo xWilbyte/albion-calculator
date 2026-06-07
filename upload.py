@@ -13,26 +13,21 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Remove padding to pull sections to the top */
     [data-testid="stMainBlockContainer"] { padding-top: 1rem; }
     [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
     
-    /* Remove default top margins from sidebar headers */
     [data-testid="stSidebarContent"] h2 { margin-top: 0rem !important; padding-top: 0.5rem !important; }
 
-    /* Force header and cell alignment */
     [data-testid="stDataFrame"] [role="columnheader"], 
     [data-testid="stDataFrame"] [role="gridcell"] {
         justify-content: center !important;
         text-align: center !important;
     }
     
-    /* Center alignment for static tables (Recipes) */
     .stTable th, .stTable td { 
         text-align: center !important; 
     } 
     
-    /* Style the Calculate button - extended width */
     div.stButton > button { 
         width: 100% !important; 
         height: 50px; 
@@ -63,21 +58,21 @@ STATION_COST = st.sidebar.number_input("Station Cost", value=500)
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Volume (24h)", value=100) 
 MIN_MARGIN = st.sidebar.number_input("Min Profit Margin %", value=10.0, step=1.0) 
 
-st.sidebar.markdown("## Focus Settings") 
-USE_FOCUS = st.sidebar.checkbox("Use Focus", value=False) 
-FOCUS_EFFICIENCY = st.sidebar.number_input("Focus Efficiency Level", value=10000) 
-BASE_RETURN_RATE = 0.152 
-FOCUS_RETURN_RATE = 0.435 
+with st.sidebar.expander("Focus Settings"):
+    USE_FOCUS = st.checkbox("Use Focus", value=False) 
+    FOCUS_EFFICIENCY = st.number_input("Focus Efficiency Level", value=10000) 
+    BASE_RETURN_RATE = 0.152 
+    FOCUS_RETURN_RATE = 0.435 
 
-st.sidebar.markdown("## Filters") 
-ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
-MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 48) 
-IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
-SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=False) 
-SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=False) 
-SHOW_VOL = st.sidebar.checkbox("Show Vol Sold (24h)", value=True) 
-SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price (24h)", value=False) 
-SHOW_PROFIT = st.sidebar.checkbox("Show Profit (Silver)", value=False) 
+with st.sidebar.expander("Filters"):
+    ALLOWED_TIERS = st.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
+    MAX_AGE = st.slider("Max Data Age (Hours)", 1, 1000, 48) 
+    IGNORE_MARGIN = st.number_input("Ignore Margin > %", value=1000.0) 
+    SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False) 
+    SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False) 
+    SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True) 
+    SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False) 
+    SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -318,7 +313,6 @@ if st.button("Calculate"):
     results = [f.result() for f in [ThreadPoolExecutor(max_workers=THREADS).submit(process_recipe, r, name_map, market_data) for r in recipes] if f.result()] 
     st.session_state.df = pd.DataFrame(results) 
 
-# Display section 
 if st.session_state.df is not None and not st.session_state.df.empty: 
     df = st.session_state.df 
     
@@ -359,14 +353,13 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
 
-    # Dynamic height calculation
     num_rows = len(display_df)
     table_height = (num_rows + 1) * 35 
 
     st.dataframe( 
         display_df, 
         use_container_width=True, 
-        height=min(table_height, 800), # Cap at 800px or adjust as needed
+        height=min(table_height, 800),
         hide_index=True, 
         column_config=col_config
     ) 
