@@ -165,10 +165,13 @@ st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
     try:
+        # 1. Parse items.json robustly
         with open("items.json", "r", encoding="utf-8") as f:
-            root = json.load(f)["items"]
+            raw_data = json.load(f)
+            # Handle different JSON structures
+            root = raw_data.get("items", raw_data) if isinstance(raw_data, dict) else raw_data
         
-        # Robust loading of formattedItems.json
+        # 2. Parse formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
             name_data = json.load(f)
             name_lookup = {}
@@ -176,7 +179,6 @@ if st.button("Calculate"):
                 if isinstance(item, dict):
                     var_name = item.get("LocalizationNameVariable", "")
                     if var_name:
-                        # Strip @ITEMS_ or @ to match @uniquename
                         key = var_name.replace("@ITEMS_", "").replace("@", "")
                         name_lookup[key] = item.get("LocalizedNames", {}).get("EN-US", key)
                         
@@ -187,10 +189,20 @@ if st.button("Calculate"):
     recipes = []
     name_map = {}
 
-    for cat, items in root.items():
+    # Check if root is dictionary (categories) or list (flat items)
+    if isinstance(root, dict):
+        iterator = root.items()
+    else:
+        iterator = [("all", root)]
+
+    for cat, items in iterator:
         if not isinstance(items, list): continue
         for item in items:
-            u_name = item["@uniquename"]
+            if not item: continue # Safety skip for null entries
+            
+            u_name = item.get("@uniquename")
+            if not u_name: continue # Skip if item has no ID
+            
             name = name_lookup.get(u_name, u_name)
             name_map[u_name] = name
             
