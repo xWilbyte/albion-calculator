@@ -75,7 +75,7 @@ MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 48)
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
 SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=False) 
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=False) 
-SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=False) 
+SHOW_VOL = st.sidebar.checkbox("Show Vol Sold (24h)", value=True) 
 SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price (24h)", value=False) 
 SHOW_PROFIT = st.sidebar.checkbox("Show Profit (Silver)", value=False) 
 
@@ -108,11 +108,8 @@ def to_list(x):
     return [x] 
 
 def get_tier(id_str): 
-    # Extract Tier (e.g., T4 from T4_POTION)
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
-    
-    # Extract Enchantment (e.g., 1 from T4_POTION@1)
     ench_match = re.search(r"@([1-3])", id_str)
     if ench_match:
         return f"{tier}.{ench_match.group(1)}"
@@ -238,7 +235,7 @@ def process_recipe(r, name_map, market_data):
                     "Profit (Silver)": int(profit),
                     "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                     "Focus": focus_cost, 
-                    "Vol (24h)": out_data.get('volume', 0),
+                    "Vol Sold (24h)": out_data.get('volume', 0),
                     "Item Age": format_age(out_hours),
                     "Mat Age": format_age(max_mat_hours)
                 } 
@@ -335,7 +332,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_PROFIT: cols.append("Profit (Silver)")
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
-    if SHOW_VOL: cols.append("Vol (24h)")
+    if SHOW_VOL: cols.append("Vol Sold (24h)")
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
     
@@ -357,7 +354,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Profit (Silver)": st.column_config.NumberColumn("Profit (Silver)", format="%,d", alignment="center"),
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
-        "Vol (24h)": st.column_config.NumberColumn("Vol (24h)", format="%,d", alignment="center"),
+        "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
