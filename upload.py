@@ -27,6 +27,10 @@ st.markdown("""
     .stTable th, .stTable td { 
         text-align: center !important; 
     } 
+
+    div.stButton {
+        width: 100% !important;
+    }
     
     div.stButton > button { 
         width: 100% !important; 
@@ -243,6 +247,7 @@ def process_recipe(r, name_map, market_data):
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
+# Render button in main area
 if st.button("Calculate"): 
     if not CRAFT_CITIES or not SELL_CITIES: 
         st.error("Please select at least one Craft city and one Sell city.") 
