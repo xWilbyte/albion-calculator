@@ -129,6 +129,16 @@ class RateLimiter:
 limiter = RateLimiter(1/150) 
 
 # ================= UTILS ================= 
+def normalize_id(id_str):
+    """Converts LEVEL format to @ format for API compatibility."""
+    if "_LEVEL" in id_str:
+        return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
+    return id_str
+
+def get_base_name(id_str):
+    """Removes suffix for name lookup."""
+    return re.sub(r"(@\d+|(_LEVEL\d+))", "", id_str)
+
 def to_list(x): 
     if x is None: return [] 
     if isinstance(x, list): return x 
@@ -153,7 +163,9 @@ def format_age(hours): return "N/A" if hours == 999 else f"{hours}h"
 
 def get_id(x): 
     if not isinstance(x, dict): return None 
-    return x.get("@uniquename") or x.get("id") 
+    val = x.get("@uniquename") or x.get("id")
+    if val: return normalize_id(val)
+    return None
 
 # ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
@@ -240,7 +252,7 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 best_result = { 
-                    "Craft City": craft_city, "Sell City": sell_city, "Tier": get_tier(r['output']), "Name": name_map.get(r['output'], r['output']), 
+                    "Craft City": craft_city, "Sell City": sell_city, "Tier": get_tier(r['output']), "Name": name_map.get(get_base_name(r['output']), r['output']), 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
@@ -297,8 +309,9 @@ if st.button("Click to Calculate", use_container_width=True):
             
             if not is_match: continue
 
-            name = name_lookup.get(u_name, u_name) 
-            name_map[u_name] = name 
+            base_n = get_base_name(u_name)
+            name_map[base_n] = name_lookup.get(base_n, u_name)
+            
             tier_match = re.match(r"T([1-8])_", u_name) 
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
             
@@ -308,7 +321,7 @@ if st.button("Click to Calculate", use_container_width=True):
             def add_recipe(c, output, val): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 
-                # Faction check for Refine
+                # Faction check
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
                         if "FACTION" in get_id(r).upper():
@@ -317,7 +330,7 @@ if st.button("Click to Calculate", use_container_width=True):
                 inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
                 if inputs: 
                     recipes.append({
-                        "output": output, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), 
+                        "output": normalize_id(output), "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), 
                         "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), 
                         "item_value": val
                     }) 
@@ -329,14 +342,8 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Specific ID format logic
-                    if subcat == "refinedresources":
-                        ench_output = f"{u_name}_LEVEL{lvl}@{lvl}"
-                    else:
-                        ench_output = f"{u_name}@{lvl}"
-                    
-                    # Store clean name for the display
-                    name_map[ench_output] = name_lookup.get(u_name, u_name)
+                    # Use unique ID format, already normalized by add_recipe
+                    ench_output = f"{u_name}_LEVEL{lvl}" 
                     
                     for c in to_list(ench.get("craftingrequirements")): 
                         if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
@@ -402,7 +409,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                     mat_id = item['id'] 
                     m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
                     price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
-                    mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(mat_id, mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
+                    mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(get_base_name(mat_id), mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
                 st.table(pd.DataFrame(mat_data)) 
 
 elif st.session_state.df is not None and st.session_state.df.empty: 
