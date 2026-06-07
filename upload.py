@@ -13,14 +13,14 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 
 st.markdown(""" 
     <style> 
-    /* Force header alignment using a more aggressive selector */
-    [data-testid="stDataFrame"] [role="columnheader"] {
-        display: flex !important;
+    /* Force header and cell alignment */
+    [data-testid="stDataFrame"] [role="columnheader"], 
+    [data-testid="stDataFrame"] [role="gridcell"] {
         justify-content: center !important;
         text-align: center !important;
     }
     
-    /* Center alignment for standard static tables (Recipes) */
+    /* Center alignment for static tables (Recipes) */
     .stTable th, .stTable td { 
         text-align: center !important; 
     } 
@@ -65,7 +65,8 @@ MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72)
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
 SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=True) 
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=True) 
-SHOW_VOL = st.sidebar.checkbox("Show Vol(24h)", value=True) 
+SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=True) 
+SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price", value=True) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -208,10 +209,11 @@ def process_recipe(r, name_map, market_data):
                 "Inputs": r['inputs'],  
                 "Mat Cost": int(total_cost), 
                 "Sell Price": int(gross_rev), 
+                "Avg Price": int(out_data.get('hist_price', 0)),
                 "Profit Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
-                "Vol(24h)": out_data.get('volume', 0),
+                "Vol (24h)": out_data.get('volume', 0),
                 "Item Age": format_age(out_hours),
                 "Mat Age": format_age(max_mat_hours)
             } 
@@ -300,10 +302,12 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
-    cols.extend(["Mat Cost", "Sell Price", "Profit Margin%"])
+    cols.extend(["Mat Cost", "Sell Price"])
+    if SHOW_AVG_PRICE: cols.append("Avg Price")
+    cols.append("Profit Margin%")
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
-    if SHOW_VOL: cols.append("Vol(24h)")
+    if SHOW_VOL: cols.append("Vol (24h)")
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
     
@@ -319,23 +323,22 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Best City": st.column_config.TextColumn("Best City", alignment="center"),
         "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "Avg Price": st.column_config.NumberColumn("Avg Price", format="%,d", alignment="center"),
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
-        "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d", alignment="center"),
+        "Vol (24h)": st.column_config.NumberColumn("Vol (24h)", format="%,d", alignment="center"),
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
 
-    col_left, col_mid, col_right = st.columns([0.1, 9.8, 0.1])
-    with col_mid:
-        st.dataframe( 
-            display_df, 
-            use_container_width=True, 
-            height=600,
-            hide_index=True, 
-            column_config=col_config
-        ) 
+    st.dataframe( 
+        display_df, 
+        use_container_width=True, 
+        height=600,
+        hide_index=True, 
+        column_config=col_config
+    ) 
 
     st.divider() 
     st.subheader("Recipes") 
