@@ -290,23 +290,28 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     st.divider()
     st.subheader("Detailed Recipes")
     
+    # ADDED: Search Box for Filtering
+    search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...")
+    
     for _, row in df.iterrows():
-        with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"):
-            mat_data = []
-            for item in row['Inputs']:
-                mat_id = item['id']
-                m_data = st.session_state.market_data.get(mat_id, {})
-                price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0)
+        # Only show expanders that match the search term
+        if search_term.lower() in row['Name'].lower():
+            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"):
+                mat_data = []
+                for item in row['Inputs']:
+                    mat_id = item['id']
+                    m_data = st.session_state.market_data.get(mat_id, {})
+                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0)
+                    
+                    mat_data.append({
+                        "Tier": get_tier(mat_id),
+                        "Material": st.session_state.name_map.get(mat_id, mat_id),
+                        "Quantity": item['count'],
+                        "Unit Cost": f"{int(price):,}",
+                        "Total Material Cost": f"{int(price * item['count']):,}"
+                    })
                 
-                mat_data.append({
-                    "Tier": get_tier(mat_id),
-                    "Material": st.session_state.name_map.get(mat_id, mat_id),
-                    "Quantity": item['count'],
-                    "Unit Cost": f"{int(price):,}",
-                    "Total Material Cost": f"{int(price * item['count']):,}"
-                })
-            
-            st.table(pd.DataFrame(mat_data))
+                st.table(pd.DataFrame(mat_data))
 
 elif st.session_state.df is not None and st.session_state.df.empty:
     st.warning("No items found.")
