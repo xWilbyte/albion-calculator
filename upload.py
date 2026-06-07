@@ -156,13 +156,9 @@ def get_tier(id_str):
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
     
-    # Check for standard gear enchantment (e.g., @1 to @4)
-    ench_match = re.search(r"@([1-4])", id_str)
+    # Check for level/enchantment
+    ench_match = re.search(r"[@_]([1-4])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
-    
-    # Check for refined resource level (e.g., _LEVEL1 to _LEVEL4)
-    level_match = re.search(r"_LEVEL([1-4])", id_str)
-    if level_match: return f"{tier}.{level_match.group(1)}"
     
     return tier
 
@@ -355,6 +351,7 @@ if st.button("Click to Calculate", use_container_width=True):
             if enchant: 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
+                    # Preserve exact ID format for API requests
                     ench_output = f"{u_name}@{lvl}" 
                     base_name = name_lookup.get(u_name, u_name) 
                     name_map[ench_output] = base_name
