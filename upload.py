@@ -50,6 +50,9 @@ FOCUS_RETURN_RATE = 0.435
 st.sidebar.header("Filters") 
 ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72) 
+SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=True) 
+SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=True) 
+SHOW_VOL = st.sidebar.checkbox("Show Vol(24h)", value=True) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -283,17 +286,18 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     df = st.session_state.df 
     
     # --- TABLE DISPLAY --- 
-    cols_to_drop = ["Inputs"]
-    if not USE_FOCUS: 
-        cols_to_drop.extend(["S/F", "Focus"]) 
-        sort_col = "Margin%" 
-    else: 
-        sort_col = "S/F" 
+    # Build list of columns to show
+    cols = ["Tier", "Name"]
+    if len(CRAFT_CITIES) > 1: cols.append("Best City")
+    cols.extend(["Cost", "Price", "Margin%"])
     
-    if len(CRAFT_CITIES) == 1:
-        cols_to_drop.append("Best City")
-        
-    display_df = df.drop(columns=cols_to_drop, errors='ignore') 
+    if USE_FOCUS: cols.extend(["S/F", "Focus"])
+    if SHOW_VOL: cols.append("Vol(24h)")
+    if SHOW_ITEM_AGE: cols.append("Item Age")
+    if SHOW_MAT_AGE: cols.append("Mat Age")
+    
+    display_df = df[cols]
+    sort_col = "S/F" if USE_FOCUS else "Margin%"
         
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
@@ -310,8 +314,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
             "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"), 
         } 
     ) 
-
-    st.write(f"**Market Data Sources:** {', '.join(CRAFT_CITIES)}") 
 
     # --- MATERIAL BREAKDOWN --- 
     st.divider() 
