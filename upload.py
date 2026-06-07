@@ -130,7 +130,6 @@ def get_id(x):
 def fetch_market_data(ids): 
     data_map = {} 
     unique_ids = list(set(ids)) 
-    # Fetch data for all requested cities
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
     
@@ -182,7 +181,6 @@ def process_recipe(r, name_map, market_data):
     best_profit = -999999999
     current_return = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE 
 
-    # Iterate through all combinations of craft and sell cities
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
             out_key = r['output'] 
@@ -361,10 +359,9 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         column_config=col_config
     ) 
 
-    st.divider() 
     st.subheader("Recipes") 
     
-    search_term = st.text_input("🔍 Search for a recipe name:", placeholder="Type name to filter...") 
+    search_term = st.text_input("Search for a recipe name:", placeholder="Type name to filter...") 
     
     for _, row in df.iterrows(): 
         if search_term.lower() in row['Name'].lower(): 
