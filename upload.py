@@ -213,7 +213,7 @@ def process_recipe(r, name_map, market_data):
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
 # Button placed in Main Area
-if st.button("Calculate", use_container_width=True): 
+if st.button("Click to Calculate", use_container_width=True): 
     if not CRAFT_CITIES or not SELL_CITIES: 
         st.error("Please select at least one Craft city and one Sell city.") 
         st.stop() 
@@ -303,7 +303,11 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
     }
     
-    st.dataframe(display_df, use_container_width=True, hide_index=True, column_config=col_config) 
+    # Logic to scale table height with row count
+    num_rows = len(display_df)
+    table_height = (num_rows + 1) * 35 
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True, column_config=col_config, height=min(table_height, 800)) 
     st.subheader("Recipes") 
     search_term = st.text_input("Search for a recipe name:", placeholder="Type name to filter...") 
     for _, row in df.iterrows(): 
