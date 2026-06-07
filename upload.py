@@ -63,10 +63,10 @@ st.sidebar.header("Filters")
 ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
 MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72) 
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
-SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=True) 
-SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=True) 
-SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=True) 
-SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price", value=True) 
+SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=False) 
+SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=False) 
+SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=False) 
+SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price (24h)", value=False) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -153,7 +153,6 @@ def fetch_market_data(ids):
                             item_id = entry.get("item_id") 
                             data_points = entry.get("data", []) 
                             if not data_points or not item_id: continue 
-                            if item_id not in data_map: item_id not in data_map
                             if item_id not in data_map: data_map[item_id] = {} 
                             if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
                             
@@ -194,7 +193,6 @@ def process_recipe(r, name_map, market_data):
         total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
         gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
         
-        # Avg Revenue calculation using hist_price
         avg_rev = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
         
         profit = gross_rev - total_cost 
@@ -214,7 +212,7 @@ def process_recipe(r, name_map, market_data):
                 "Inputs": r['inputs'],  
                 "Mat Cost": int(total_cost), 
                 "Sell Price": int(gross_rev), 
-                "Avg Price": int(avg_rev),
+                "Avg Price (24h)": int(avg_rev),
                 "Profit Margin%": round(pct, 1), 
                 "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                 "Focus": focus_cost, 
@@ -308,7 +306,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Best City")
     cols.extend(["Mat Cost", "Sell Price"])
-    if SHOW_AVG_PRICE: cols.append("Avg Price")
+    if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
     cols.append("Profit Margin%")
     
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
@@ -328,7 +326,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Best City": st.column_config.TextColumn("Best City", alignment="center"),
         "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
         "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
-        "Avg Price": st.column_config.NumberColumn("Avg Price", format="%,d", alignment="center"),
+        "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
