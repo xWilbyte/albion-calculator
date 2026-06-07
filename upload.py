@@ -68,6 +68,8 @@ with st.sidebar.expander("Filters"):
     ALLOWED_TIERS = st.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
     MAX_AGE = st.slider("Max Data Age (Hours)", 1, 1000, 48) 
     IGNORE_MARGIN = st.number_input("Ignore Margin > %", value=1000.0) 
+
+with st.sidebar.expander("Display Options"):
     SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False) 
     SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False) 
     SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True) 
