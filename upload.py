@@ -283,12 +283,17 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     df = st.session_state.df 
     
     # --- TABLE DISPLAY --- 
+    cols_to_drop = ["Inputs"]
     if not USE_FOCUS: 
-        display_df = df.drop(columns=["S/F", "Focus", "Inputs"], errors='ignore') 
+        cols_to_drop.extend(["S/F", "Focus"]) 
         sort_col = "Margin%" 
     else: 
-        display_df = df.drop(columns=["Inputs"], errors='ignore') 
         sort_col = "S/F" 
+    
+    if len(CRAFT_CITIES) == 1:
+        cols_to_drop.append("Best City")
+        
+    display_df = df.drop(columns=cols_to_drop, errors='ignore') 
         
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
@@ -316,7 +321,8 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     
     for _, row in df.iterrows(): 
         if search_term.lower() in row['Name'].lower(): 
-            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']}) | Best City: {row['Best City']}"): 
+            city_display = f" | Best City: {row['Best City']}" if len(CRAFT_CITIES) > 1 else ""
+            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']}){city_display}"): 
                 mat_data = [] 
                 for item in row['Inputs']: 
                     mat_id = item['id'] 
