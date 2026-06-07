@@ -69,13 +69,13 @@ FOCUS_RETURN_RATE = 0.435
 
 st.sidebar.markdown("## Filters") 
 ALLOWED_TIERS = st.sidebar.multiselect("Allowed Tiers", [1, 2, 3, 4, 5, 6, 7, 8], default=[1, 2, 3, 4, 5, 6, 7, 8]) 
-MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 72) 
+MAX_AGE = st.sidebar.slider("Max Data Age (Hours)", 1, 1000, 48) 
 IGNORE_MARGIN = st.sidebar.number_input("Ignore Margin > %", value=1000.0) 
 SHOW_MAT_AGE = st.sidebar.checkbox("Show Mat Age", value=False) 
 SHOW_ITEM_AGE = st.sidebar.checkbox("Show Item Age", value=False) 
 SHOW_VOL = st.sidebar.checkbox("Show Vol (24h)", value=False) 
 SHOW_AVG_PRICE = st.sidebar.checkbox("Show Avg Price (24h)", value=False) 
-SHOW_PROFIT = st.sidebar.checkbox("Show Profit (Silver)", value=True) 
+SHOW_PROFIT = st.sidebar.checkbox("Show Profit (Silver)", value=False) 
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
