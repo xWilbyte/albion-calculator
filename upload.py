@@ -46,13 +46,15 @@ if 'market_data' not in st.session_state: st.session_state.market_data = {}
 
 # ================= SIDEBAR INPUTS ================= 
 st.sidebar.markdown("## Config") 
-CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower()  
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
-CRAFT_CITIES = st.sidebar.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"]) 
-SELL_CITIES = st.sidebar.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"]) 
-STATION_COST = st.sidebar.number_input("Station Cost", value=500) 
-MIN_DAILY_VOLUME = st.sidebar.number_input("Min Volume (24h)", value=100) 
-MIN_MARGIN = st.sidebar.number_input("Min Profit Margin %", value=10.0, step=1.0) 
+
+with st.sidebar.expander("General Settings", expanded=True):
+    CRAFT_TYPE = st.selectbox("Craft Type", ["Potion", "Food"]).lower()  
+    CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"]) 
+    SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"]) 
+    STATION_COST = st.number_input("Station Cost", value=500) 
+    MIN_DAILY_VOLUME = st.number_input("Min Volume (24h)", value=100) 
+    MIN_MARGIN = st.number_input("Min Profit Margin %", value=10.0, step=1.0) 
 
 with st.sidebar.expander("Focus Settings"):
     USE_FOCUS = st.checkbox("Use Focus", value=False) 
