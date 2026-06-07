@@ -8,17 +8,29 @@ import pandas as pd
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
+# ================= PAGE CONFIG & STYLING =================
+st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
+
+# CSS to center align text in Dataframes
+st.markdown("""
+    <style>
+    div[data-testid="stDataFrame"] {
+        text-align: center !important;
+    }
+    th, td {
+        text-align: center !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # ================= SESSION STATE INIT =================
 if 'df' not in st.session_state:
     st.session_state.df = None
 
-# ================= PAGE CONFIG =================
-st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
-
 # ================= SIDEBAR INPUTS =================
-st.sidebar.header("Crafting Config")
+st.sidebar.header("Config")
 CRAFT_TYPE = st.sidebar.selectbox("Craft Type", ["Potion", "Food"]).lower() 
-CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market"])
+CRAFT_CITY = st.sidebar.selectbox("City", ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"])
 STATION_COST = st.sidebar.number_input("Station Cost", value=500)
 MIN_DAILY_VOLUME = st.sidebar.number_input("Min Daily Volume", value=100)
 MIN_MARGIN = st.sidebar.number_input("Min Margin %", value=10.0, step=1.0)
@@ -170,10 +182,12 @@ st.title("Albion Crafting Calculator")
 
 if st.button("Calculate"):
     try:
+        # Load items.json
         with open("items.json", "r", encoding="utf-8") as f:
             raw_items = json.load(f)
             root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {}
         
+        # Load formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
             name_data = json.load(f)
             name_lookup = {}
@@ -255,7 +269,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         df, 
         width='stretch', 
         height=800,
-        hide_index=True,  # Removes the ID box column
+        hide_index=True,
         column_config={
             "Tier": st.column_config.NumberColumn("Tier", format="%d"),
             "Cost": st.column_config.NumberColumn("Cost", format="%,d"),
