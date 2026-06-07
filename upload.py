@@ -151,13 +151,21 @@ limiter = RateLimiter(1/150)
 
 # ================= UTILS ================= 
 
-def normalize_id(id_str):
+def normalize_id(id_str, category="refine"):
     """
-    Transforms _LEVEL# to _LEVEL#@# for API compatibility (e.g. T4_PLANKS_LEVEL4 -> T4_PLANKS_LEVEL4@4)
+    Transforms _LEVEL# into the correct API format based on category.
+    Refining uses _LEVEL#@# (e.g., T4_PLANKS_LEVEL4@4)
+    Food/Potions use @# (e.g., T2_MEAL_SALAD@1)
     """
     if not id_str: return id_str
     if "@" in id_str: return id_str
-    return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
+    
+    if category == "refine" or category == "rock":
+        # Keep existing logic for refining
+        return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
+    else:
+        # Update for food/potions
+        return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_base_name(id_str):
     """Removes suffix for name lookup."""
@@ -185,10 +193,10 @@ def get_hours_ago(date_str):
 
 def format_age(hours): return "N/A" if hours == 999 else f"{hours}h" 
 
-def get_id(x): 
+def get_id(x, category): 
     if not isinstance(x, dict): return None 
     val = x.get("@uniquename") or x.get("id")
-    if val: return normalize_id(val) 
+    if val: return normalize_id(val, category) 
     return None
 
 # ================= MARKET FETCH ================= 
@@ -239,7 +247,6 @@ def fetch_market_data(ids):
         except: continue 
     return data_map 
 
-# ================= PROCESS RECIPE ================= 
 # ================= PROCESS RECIPE ================= 
 def process_recipe(r, name_map, market_data): 
     best_result = None 
@@ -303,7 +310,7 @@ def process_recipe(r, name_map, market_data):
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours)
                 } 
-    return best_result
+    return best_result 
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
@@ -354,8 +361,7 @@ if st.button("Click to Calculate", use_container_width=True):
             u_name = item.get("@uniquename") 
             if not u_name: continue 
             
-            # --- FIX: Grab display names BEFORE checking if it's a valid recipe match ---
-            # This ensures your raw inputs (like T3_ROCK) get properly translated later!
+            # --- Grab display names BEFORE checking if it's a valid recipe match ---
             base_n = get_base_name(u_name)
             if base_n not in name_map:
                 name_map[base_n] = name_lookup.get(base_n, u_name)
@@ -383,14 +389,14 @@ if st.button("Click to Calculate", use_container_width=True):
                 
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
-                        if "FACTION" in get_id(r).upper():
+                        if "FACTION" in get_id(r, category).upper():
                             return 
 
-                inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
+                inputs = [{"id": get_id(r, category), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r, category)] 
                 
                 if inputs: 
                     recipes.append({
-                        "output": normalize_id(output), 
+                        "output": normalize_id(output, category), 
                         "category": category, 
                         "inputs": inputs, 
                         "silver_cost": int(c.get("@silver", 0)), 
