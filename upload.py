@@ -318,7 +318,7 @@ if st.button("Click to Calculate", use_container_width=True):
                 
             enchant = item.get("enchantments") 
             if enchant: 
-                # FIX: Stricter filter for rock/stone to prevent duplicate logic loops
+                # Stricter filter for rock/stone to prevent duplicate logic loops
                 if "rock" in cat_tag or "stone" in cat_tag or "rock" in subcat or "stone" in subcat:
                     continue
                 
@@ -337,4 +337,65 @@ if st.button("Click to Calculate", use_container_width=True):
     with st.spinner('Fetching market data...'): 
         market_data = fetch_market_data(lookup_ids) 
     st.session_state.name_map = name_map 
-    st.session_state.market_data = market_data
+    st.session_state.market_data = market_data 
+    
+    with ThreadPoolExecutor(max_workers=THREADS) as executor:
+        futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
+        results = [f.result() for f in futures if f.result()]
+        
+    st.session_state.df = pd.DataFrame(results) 
+
+if st.session_state.df is not None and not st.session_state.df.empty: 
+    df = st.session_state.df 
+    cols = ["Tier", "Name"]
+    if len(CRAFT_CITIES) > 1: cols.append("Craft City")
+    if len(SELL_CITIES) > 1: cols.append("Sell City")
+    cols.extend(["Mat Cost", "Sell Price"])
+    if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
+    cols.append("Profit Margin%")
+    if SHOW_PROFIT: cols.append("Profit (Silver)")
+    if USE_FOCUS: cols.extend(["S/F", "Focus"])
+    if SHOW_VOL: cols.append("Vol Sold (24h)")
+    if SHOW_ITEM_AGE: cols.append("Item Age")
+    if SHOW_MAT_AGE: cols.append("Mat Age")
+    
+    display_df = df[cols].copy()
+    sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
+    if sort_col in display_df.columns: display_df = display_df.sort_values(by=sort_col, ascending=False) 
+    
+    col_config = {
+        "Tier": st.column_config.TextColumn("Tier", alignment="center"),
+        "Name": st.column_config.TextColumn("Name", alignment="center"),
+        "Craft City": st.column_config.TextColumn("Craft City", alignment="center"),
+        "Sell City": st.column_config.TextColumn("Sell City", alignment="center"),
+        "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
+        "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
+        "Profit Margin%": st.column_config.NumberColumn("Profit Margin%", format="%.1f%%", alignment="center"),
+        "Profit (Silver)": st.column_config.NumberColumn("Profit (Silver)", format="%,d", alignment="center"),
+        "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
+        "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"),
+        "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
+        "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
+        "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
+    }
+    
+    num_rows = len(display_df)
+    table_height = (num_rows + 1) * 35 
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True, column_config=col_config, height=min(table_height, 800)) 
+    st.subheader("Recipes") 
+    search_term = st.text_input("Search for a recipe name:", placeholder="Type name to filter...") 
+    for _, row in df.iterrows(): 
+        if search_term.lower() in row['Name'].lower(): 
+            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"): 
+                mat_data = [] 
+                for item in row['Inputs']: 
+                    mat_id = item['id'] 
+                    m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
+                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
+                    mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(mat_id, mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
+                st.table(pd.DataFrame(mat_data)) 
+
+elif st.session_state.df is not None and st.session_state.df.empty: 
+    st.warning("No items found.")
