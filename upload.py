@@ -359,10 +359,14 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
 
+    # Dynamic height calculation
+    num_rows = len(display_df)
+    table_height = (num_rows + 1) * 35 
+
     st.dataframe( 
         display_df, 
         use_container_width=True, 
-        height=600,
+        height=min(table_height, 800), # Cap at 800px or adjust as needed
         hide_index=True, 
         column_config=col_config
     ) 
