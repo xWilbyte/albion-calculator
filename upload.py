@@ -14,12 +14,17 @@ st.set_page_config(layout="wide", page_title="Albion Crafting Calculator")
 # CSS to improve layout, button size, and alignment 
 st.markdown(""" 
     <style> 
-    /* Center align DataFrames */
-    div[data-testid="stDataFrame"] { 
+    /* Force center alignment on all table headers and cells */
+    .stTable th, .stTable td { 
         text-align: center !important; 
     } 
-    /* Center align static tables */
-    div.stTable table, div.stTable th, div.stTable td { 
+    /* Ensure the table container is centered */
+    .stTable table { 
+        margin-left: auto !important; 
+        margin-right: auto !important; 
+    } 
+    /* Center align DataFrames */
+    div[data-testid="stDataFrame"] { 
         text-align: center !important; 
     } 
     /* Style the Calculate button to be large and prominent */
@@ -219,7 +224,6 @@ def process_recipe(r, name_map, market_data):
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
-# Moved button back to main body
 if st.button("Calculate"): 
     if not CRAFT_CITIES: 
         st.error("Please select at least one city.") 
@@ -335,8 +339,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     
     for _, row in df.iterrows(): 
         if search_term.lower() in row['Name'].lower(): 
-            city_display = f" | Best City: {row['Best City']}" if len(CRAFT_CITIES) > 1 else ""
-            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']}){city_display}"): 
+            with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"): 
                 mat_data = [] 
                 for item in row['Inputs']: 
                     mat_id = item['id'] 
