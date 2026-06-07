@@ -155,8 +155,15 @@ def to_list(x):
 def get_tier(id_str): 
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
+    
+    # Check for standard gear enchantment (e.g., @1)
     ench_match = re.search(r"@([1-3])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
+    
+    # Check for refined resource level (e.g., _LEVEL1)
+    level_match = re.search(r"_LEVEL([1-3])", id_str)
+    if level_match: return f"{tier}.{level_match.group(1)}"
+    
     return tier
 
 def get_hours_ago(date_str): 
@@ -229,12 +236,10 @@ def process_recipe(r, name_map, market_data):
     for craft_city in CRAFT_CITIES: 
         # Calculate Return Rates
         if CRAFT_TYPE == "refine":
-            # 18% base for refining + local bonus
             bonus = REFINING_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
-            total_bonus = 18 + bonus # Standard Base 18%
+            total_bonus = 18 + bonus 
             current_return = 1 - (1 / (1 + (total_bonus / 100)))
         else:
-            # Potion/Food
             base_pct = (FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE) * 100
             local = LOCAL_BONUSES.get(craft_city, {}).get(r.get('slot_type', ''), 0)
             total_bonus = base_pct + local
@@ -317,7 +322,6 @@ if st.button("Click to Calculate", use_container_width=True):
             # Determine if we should process this item
             is_match = False
             if CRAFT_TYPE == "refine":
-                # Detect refined resources
                 if item.get("@craftingcategory") == "refining" or item.get("@shopsubcategory1") == "refinedresources":
                     is_match = True
             elif item.get("@craftingcategory") == CRAFT_TYPE:
@@ -374,7 +378,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Craft City")
     if len(SELL_CITIES) > 1: cols.append("Sell City")
-    cols.extend(["Mat Cost", "Sell Price", "RRR %"]) # Added RRR % here
+    cols.extend(["Mat Cost", "Sell Price", "RRR %"]) 
     if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
     cols.append("Profit Margin%")
     if SHOW_PROFIT: cols.append("Profit (Silver)")
@@ -405,7 +409,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
     }
     
-    # Logic to scale table height with row count
     num_rows = len(display_df)
     table_height = (num_rows + 1) * 35 
     
