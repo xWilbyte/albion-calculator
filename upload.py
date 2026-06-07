@@ -11,20 +11,11 @@ from concurrent.futures import ThreadPoolExecutor
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
 
-# CSS to improve layout, button size, and alignment 
+# CSS for button and general table container
 st.markdown(""" 
     <style> 
-    /* Force center alignment on all table headers and cells */
+    /* Force center alignment on static tables */
     .stTable th, .stTable td { 
-        text-align: center !important; 
-    } 
-    /* Ensure the table container is centered */
-    .stTable table { 
-        margin-left: auto !important; 
-        margin-right: auto !important; 
-    } 
-    /* Center align DataFrames */
-    div[data-testid="stDataFrame"] { 
         text-align: center !important; 
     } 
     /* Style the Calculate button to be large and prominent */
@@ -316,19 +307,25 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         
     if sort_col in display_df.columns: 
         display_df = display_df.sort_values(by=sort_col, ascending=False) 
-        
+    
+    # Define Column Configuration for Centering
+    col_config = {col: st.column_config.Column(col, alignment="center") for col in display_df.columns}
+    
+    # Override numeric columns with their specific formatting + centering
+    col_config.update({
+        "Tier": st.column_config.NumberColumn("Tier", format="%d", alignment="center"), 
+        "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d", alignment="center"), 
+        "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d", alignment="center"), 
+        "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"), 
+        "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d", alignment="center"), 
+    })
+
     st.dataframe( 
         display_df, 
         use_container_width=True, 
         height=600,
         hide_index=True, 
-        column_config={ 
-            "Tier": st.column_config.NumberColumn("Tier", format="%d"), 
-            "Mat Cost": st.column_config.NumberColumn("Mat Cost", format="%,d"), 
-            "Sell Price": st.column_config.NumberColumn("Sell Price", format="%,d"), 
-            "Focus": st.column_config.NumberColumn("Focus", format="%,d"), 
-            "Vol(24h)": st.column_config.NumberColumn("Vol(24h)", format="%,d"), 
-        } 
+        column_config=col_config
     ) 
 
     # --- MATERIAL BREAKDOWN --- 
