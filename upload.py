@@ -167,10 +167,19 @@ if st.button("Calculate"):
     try:
         with open("items.json", "r", encoding="utf-8") as f:
             root = json.load(f)["items"]
+        
+        # Robust loading of formattedItems.json
         with open("formattedItems.json", "r", encoding="utf-8") as f:
-            formatted_items = json.load(f)
-            # Create a lookup map: "@ITEMS_ID" -> "Display Name"
-            name_lookup = {item["LocalizationNameVariable"].replace("@", ""): item["LocalizedNames"].get("EN-US", item["LocalizationNameVariable"]) for item in formatted_items}
+            name_data = json.load(f)
+            name_lookup = {}
+            for item in name_data:
+                if isinstance(item, dict):
+                    var_name = item.get("LocalizationNameVariable", "")
+                    if var_name:
+                        # Strip @ITEMS_ or @ to match @uniquename
+                        key = var_name.replace("@ITEMS_", "").replace("@", "")
+                        name_lookup[key] = item.get("LocalizedNames", {}).get("EN-US", key)
+                        
     except FileNotFoundError:
         st.error("JSON files (items.json or formattedItems.json) missing!")
         st.stop()
@@ -182,7 +191,6 @@ if st.button("Calculate"):
         if not isinstance(items, list): continue
         for item in items:
             u_name = item["@uniquename"]
-            # Look up the real name, fallback to unique name if not found
             name = name_lookup.get(u_name, u_name)
             name_map[u_name] = name
             
@@ -208,7 +216,9 @@ if st.button("Calculate"):
                     for ench in to_list(enchant.get("enchantment")):
                         lvl = int(ench.get("@enchantmentlevel", 0))
                         ench_output = f"{u_name}@{lvl}"
-                        name_map[ench_output] = f"{name} (Ench {lvl})"
+                        base_name = name_lookup.get(u_name, u_name)
+                        name_map[ench_output] = f"{base_name} (Ench {lvl})"
+                        
                         for c in to_list(ench.get("craftingrequirements")):
                             if c: add_recipe(c, ench_output, base_val * (2 ** lvl))
 
@@ -229,7 +239,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     else:
         sort_col = "S/F"
         
-    # Safety Check: only sort if column exists
     if sort_col in df.columns:
         df = df.sort_values(by=sort_col, ascending=False)
         
