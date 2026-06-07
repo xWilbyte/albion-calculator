@@ -76,9 +76,7 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    # UI Choice -> Logic Mapping
     ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refine"], key="craft_type")
-    # Map UI choice to internal logic string
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
     elif ui_choice == "Refine": CRAFT_TYPE = "refine"
     else: CRAFT_TYPE = "food"
@@ -139,7 +137,6 @@ def to_list(x):
 def get_tier(id_str): 
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
-    # Regex updated to support up to @4
     ench_match = re.search(r"@([1-4])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
     return tier
@@ -286,7 +283,6 @@ if st.button("Click to Calculate", use_container_width=True):
             u_name = item.get("@uniquename") 
             if not u_name: continue 
             
-            # Logic Filtering
             is_match = False
             if CRAFT_TYPE == "refine":
                 if item.get("@shopsubcategory1") == "refinedresources":
@@ -319,9 +315,12 @@ if st.button("Click to Calculate", use_container_width=True):
                 
             enchant = item.get("enchantments") 
             if enchant: 
+                # Constraint: Do not show enchantments for rock
+                if item.get("@craftingcategory") == "rock":
+                    continue
+                
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
-                    # Logic: Refined items have a different ID pattern
                     is_refined = item.get("@shopsubcategory1") == "refinedresources"
                     if is_refined:
                         ench_output = f"{u_name}_LEVEL{lvl}@{lvl}"
@@ -329,7 +328,9 @@ if st.button("Click to Calculate", use_container_width=True):
                         ench_output = f"{u_name}@{lvl}"
                     
                     base_name = name_lookup.get(u_name, u_name) 
-                    name_map[ench_output] = base_name
+                    # Set the map to append level for UI display
+                    name_map[ench_output] = f"{base_name} .{lvl}"
+                    
                     for c in to_list(ench.get("craftingrequirements")): 
                         if c: add_recipe(c, ench_output, base_val * (2 ** lvl)) 
 
