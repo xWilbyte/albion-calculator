@@ -8,28 +8,34 @@ import pandas as pd
 from datetime import datetime, timezone 
 from concurrent.futures import ThreadPoolExecutor 
 
-# ================= MAPPING FOR RRR =================
+# ================= UPDATED MAPPING FOR RRR =================
+# Maps category to the city that provides the +15% Return Rate bonus
 RRR_BONUS_MAP = {
     "hide": "Martlock",
     "rock": "Bridgewatch",
     "fiber": "Lymhurst",
     "wood": "Fort Sterling",
-    "ore": "Thetford"
+    "ore": "Thetford",
+    "potion": "Brecilien",
+    "food": "Caerleon"
 }
 
 def get_rrr(city, category, use_focus):
     """
     Calculates Resource Return Rate. 
-    Food/Potions do not have city-specific bonuses (they are non-bonus).
-    Refining uses the map to check for city bonuses.
+    Applies the specific city bonus if the city matches the category map.
     """
-    bonus_city = RRR_BONUS_MAP.get(category.lower()) if category else None
+    # Use lowercase for consistent key matching
+    category_key = category.lower() if category else ""
+    bonus_city = RRR_BONUS_MAP.get(category_key)
     is_bonus_city = (city == bonus_city)
     
     if use_focus:
+        # Base ~43.5% non-bonus / ~53.9% bonus
         return 0.539 if is_bonus_city else 0.435
     else:
-        return 0.367 if is_bonus_city else 0.153
+        # Base 15.3% non-bonus / ~28.0% bonus
+        return 0.280 if is_bonus_city else 0.153
 
 # ================= RESET FUNCTION =================
 def reset_defaults():
@@ -152,7 +158,6 @@ class RateLimiter:
 limiter = RateLimiter(1/150) 
 
 # ================= UTILS ================= 
-
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
@@ -247,7 +252,7 @@ def process_recipe(r, name_map, market_data):
 
     for craft_city in CRAFT_CITIES: 
         for sell_city in SELL_CITIES:
-            # Dynamic Return Rate Calculation based on Category (Refining vs Food/Potions)
+            # Dynamic Return Rate Calculation
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS)
             
             out_key = r['output']
@@ -400,7 +405,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_VOL: cols.append("Vol Sold (24h)")
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
-    if SHOW_RRR: cols.append("Return Rate") # Added column here
+    if SHOW_RRR: cols.append("Return Rate") # Added to far right
     
     display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
