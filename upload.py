@@ -275,8 +275,14 @@ def process_recipe(r, name_map, market_data):
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
                 total_mat_cost += (price * i['count'] * modifier) 
             
-            if out_hours > MAX_AGE or max_mat_hours > MAX_AGE: continue 
-            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0) 
+
+                has_fresh_price = (out_hours <= MAX_AGE and revenue > 0)
+                has_hist_price = (out_data.get('hist_price', 0) > 0)
+
+                if not (has_fresh_price or has_hist_price):
+                continue
+
+            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
             gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
             avg_rev = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
