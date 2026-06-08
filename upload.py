@@ -20,9 +20,6 @@ RRR_BONUS_MAP = {
 }
 
 def get_rrr(city, category, use_focus, is_refining):
-    """
-    Calculates Resource Return Rate.
-    """
     category_key = category.lower() if category else ""
     bonus_city = RRR_BONUS_MAP.get(category_key)
     is_bonus_city = (city == bonus_city)
@@ -36,7 +33,6 @@ def get_rrr(city, category, use_focus, is_refining):
         if use_focus:
             return 0.479 if is_bonus_city else 0.435
         else:
-            # Corrected: 24.8% for Crafting + Bonus (No Focus)
             return 0.248 if is_bonus_city else 0.153
 
 # ================= RESET FUNCTION =================
@@ -192,7 +188,9 @@ def get_hours_ago(date_str):
         return int(diff.total_seconds() // 3600) 
     except: return 999 
 
-def format_age(hours): return "N/A" if hours == 999 else f"{hours}h" 
+def format_age(hours, is_historical):
+    if is_historical: return "Avg (24h)"
+    return "N/A" if hours == 999 else f"{hours}h"
 
 def get_id(x, category): 
     if not isinstance(x, dict): return None 
@@ -257,30 +255,39 @@ def process_recipe(r, name_map, market_data):
         for sell_city in SELL_CITIES:
             is_refining = (CRAFT_TYPE == "refine")
             
-            # Dynamic Return Rate Calculation
+            # Return Rate
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
             
+            # Revenue calculation (Output)
             out_key = r['output']
-            out_data = market_data.get(out_key, {}).get(sell_city, {}) 
-            revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
-            out_hours = get_hours_ago(out_data.get('date', 'N/A')) 
+            out_data = market_data.get(out_key, {}).get(sell_city, {})
+            out_hours = get_hours_ago(out_data.get('date', 'N/A'))
             
-            total_mat_cost = 0.0 
-            max_mat_hours = 0 
+            use_fresh_out = (out_hours <= MAX_AGE and out_data.get('price', 0) > 0)
+            revenue = out_data.get('price', 0) if use_fresh_out else out_data.get('hist_price', 0)
+            out_is_hist = not use_fresh_out
+
+            # Material cost calculation
+            total_mat_cost = 0.0
+            max_mat_hours = 0
+            any_mat_is_hist = False
+
             for i in r['inputs']: 
                 mat_id = i['id'] 
-                mat_data = market_data.get(mat_id, {}).get(craft_city, {}) 
-                price = mat_data.get('price', 0) if (mat_data.get('date') != 'N/A' and get_hours_ago(mat_data.get('date')) <= MAX_AGE) else mat_data.get('hist_price', 0) 
-                max_mat_hours = max(max_mat_hours, get_hours_ago(mat_data.get('date', 'N/A'))) 
+                mat_data = market_data.get(mat_id, {}).get(craft_city, {})
+                mat_hours = get_hours_ago(mat_data.get('date', 'N/A'))
+                max_mat_hours = max(max_mat_hours, mat_hours)
+                
+                use_fresh_mat = (mat_hours <= MAX_AGE and mat_data.get('price', 0) > 0)
+                if not use_fresh_mat: any_mat_is_hist = True
+                
+                price = mat_data.get('price', 0) if use_fresh_mat else mat_data.get('hist_price', 0)
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
                 total_mat_cost += (price * i['count'] * modifier) 
             
-
-                has_fresh_price = (out_hours <= MAX_AGE and revenue > 0)
-                has_hist_price = (out_data.get('hist_price', 0) > 0)
-
-                if not (has_fresh_price or has_hist_price):
-                    continue
+            # Validation: Keep if we have either valid fresh or hist data
+            has_valid_out = (revenue > 0)
+            if not has_valid_out: continue
 
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
@@ -303,16 +310,16 @@ def process_recipe(r, name_map, market_data):
                     input_ench = 0
                     for inp in r['inputs']:
                         match = re.search(r"@([1-4])", inp['id'])
-                        if match:
-                            input_ench = max(input_ench, int(match.group(1)))
-                    if input_ench > 0:
-                        out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
+                        if match: input_ench = max(input_ench, int(match.group(1)))
+                    if input_ench > 0: out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
 
                 best_result = { 
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
-                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
+                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), 
+                    "Item Age": format_age(out_hours, out_is_hist), 
+                    "Mat Age": format_age(max_mat_hours, any_mat_is_hist),
                     "Return Rate": f"{current_return:.1%}"
                 } 
     return best_result 
@@ -453,7 +460,8 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                 for item in row['Inputs']: 
                     mat_id = item['id'] 
                     m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
-                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
+                    mat_hours = get_hours_ago(m_data.get('date', 'N/A'))
+                    price = m_data.get('price', 0) if (mat_hours <= MAX_AGE and m_data.get('price', 0) > 0) else m_data.get('hist_price', 0) 
                     mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(get_base_name(mat_id), mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
                 st.table(pd.DataFrame(mat_data)) 
 
