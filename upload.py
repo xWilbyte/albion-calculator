@@ -57,6 +57,7 @@ def reset_defaults():
     st.session_state['show_avg_price'] = False
     st.session_state['show_profit'] = False
     st.session_state['show_rrr'] = False
+    st.session_state['show_station_cost'] = False
 
 # ================= PAGE CONFIG & STYLING ================= 
 st.set_page_config(layout="wide", page_title="Albion Crafting Calculator") 
@@ -136,6 +137,7 @@ with st.sidebar.expander("Display Options"):
     SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False, key="show_avg_price") 
     SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
     SHOW_RRR = st.checkbox("Show Return Rate", value=False, key="show_rrr")
+    SHOW_STATION_COST = st.checkbox("Show Station Cost", value=False, key="show_station_cost")
 
 st.sidebar.button("Restore Default Settings", on_click=reset_defaults, use_container_width=True)
 
@@ -369,7 +371,7 @@ def process_recipe(r, name_map, market_data):
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": sf_value, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
-                    "Return Rate": f"{current_return:.1%}"
+                    "Return Rate": f"{current_return:.1%}", "Station Cost": int(station_fee)
                 } 
     return best_result 
 
@@ -485,6 +487,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
     if SHOW_RRR: cols.append("Return Rate") 
+    if SHOW_STATION_COST: cols.append("Station Cost")
     
     display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
@@ -506,6 +509,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
         "Return Rate": st.column_config.TextColumn("Return Rate", alignment="center"),
+        "Station Cost": st.column_config.NumberColumn("Station Cost", format="%,d", alignment="center"),
     }
     
     num_rows = len(display_df)
