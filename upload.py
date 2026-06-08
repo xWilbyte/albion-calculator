@@ -206,6 +206,7 @@ def fetch_market_data(ids):
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
     
+    # 1. Fetch Current Prices
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + BATCH_SIZE] 
@@ -223,10 +224,12 @@ def fetch_market_data(ids):
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
     
+    # 2. Fetch History (Updated to capture latest timestamp)
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
-        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}&time-scale=24" 
+        # Removed time-scale restriction to ensure we get the full range
+        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}" 
         try: 
             r = requests.get(url, timeout=30) 
             if r.status_code == 200: 
@@ -240,24 +243,24 @@ def fetch_market_data(ids):
                             if not data_points or not item_id: continue 
                             if item_id not in data_map: data_map[item_id] = {} 
                             if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
-                            recent_data = data_points[-30:] 
-                            avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
+                            
+                            most_recent = data_points[-1]
+                            avg_vol = sum(d.get("item_count", 0) for d in data_points[-30:]) / len(data_points[-30:])
+                            
+                            # UPDATE: Use the timestamp from history if it's more recent than current date
+                            hist_date = most_recent.get("timestamp")
+                            current_date = data_map[item_id][city].get('date')
+                            
+                            # If we have no date, or the history date is more recent, use history date
+                            if current_date == 'N/A' or (hist_date and hist_date > current_date):
+                                data_map[item_id][city]['date'] = hist_date
 
-                            # --- CHANGED: choose the newest history point within MAX_AGE hours if available ---
-                            chosen_point = None
-                            for dp in reversed(data_points):
-                                ts = dp.get("timestamp", "N/A")
-                                if get_hours_ago(ts) <= MAX_AGE:
-                                    chosen_point = dp
-                                    break
-
-                            if chosen_point:
-                                data_map[item_id][city].update({'volume': int(avg_vol), 'hist_price': chosen_point.get("avg_price", 0), 'hist_date': chosen_point.get("timestamp", "N/A")})
-                            else:
-                                most_recent = data_points[-1]
-                                data_map[item_id][city].update({'volume': int(avg_vol), 'hist_price': most_recent.get("avg_price", 0), 'hist_date': most_recent.get("timestamp", "N/A")})
+                            data_map[item_id][city].update({
+                                'volume': int(avg_vol), 
+                                'hist_price': most_recent.get("avg_price", 0)
+                            }) 
         except: continue 
-    return data_map 
+    return data_map
 
 # ================= PROCESS RECIPE ================= 
 def process_recipe(r, name_map, market_data): 
