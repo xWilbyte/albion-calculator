@@ -264,49 +264,51 @@ def process_recipe(r, name_map, market_data):
             is_refining = (CRAFT_TYPE == "refine")
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
             
-            # --- OUTPUT PRICE LOGIC ---
-            out_key = r['output']
-            out_data = market_data.get(out_key, {}).get(sell_city, {})
-            live_out_price = out_data.get('price', 0)
-            out_hours = get_hours_ago(out_data.get('date', 'N/A'))
+            # --- OUTPUT DATA DETERMINATION ---
+            out_data = market_data.get(r['output'], {}).get(sell_city, {})
+            out_live_age = get_hours_ago(out_data.get('date', 'N/A'))
             
-            # Use Live price if fresh, else use Hist
-            if out_hours <= MAX_AGE and live_out_price > 0:
-                revenue_price = live_out_price
+            if out_live_age <= 24:
+                revenue = out_data.get('price', 0)
+                final_out_age = out_live_age
             else:
-                revenue_price = out_data.get('hist_price', 0)
+                revenue = out_data.get('hist_price', 0)
+                final_out_age = 24 # Historical data represents the last 24h window
             
-            # --- INPUT PRICE LOGIC ---
+            # --- HARD FILTER: OUT ---
+            if revenue <= 0 or final_out_age > MAX_AGE: continue
+
+            # --- INPUT DATA DETERMINATION ---
             total_mat_cost = 0.0
             max_mat_hours = 0
             possible_inputs = True
             
             for i in r['inputs']:
-                mat_id = i['id']
-                mat_data = market_data.get(mat_id, {}).get(craft_city, {})
-                live_mat_price = mat_data.get('price', 0)
-                mat_hours = get_hours_ago(mat_data.get('date', 'N/A'))
-                max_mat_hours = max(max_mat_hours, mat_hours)
+                mat_data = market_data.get(i['id'], {}).get(craft_city, {})
+                mat_live_age = get_hours_ago(mat_data.get('date', 'N/A'))
                 
-                # Determine best price for material
-                if mat_hours <= MAX_AGE and live_mat_price > 0:
-                    mat_price = live_mat_price
+                if mat_live_age <= 24:
+                    price = mat_data.get('price', 0)
+                    age = mat_live_age
                 else:
-                    mat_price = mat_data.get('hist_price', 0)
+                    price = mat_data.get('hist_price', 0)
+                    age = 24
                 
-                if mat_price <= 0: # If we have 0 price for a mat, we can't calculate
+                # --- HARD FILTER: INPUT ---
+                if price <= 0 or age > MAX_AGE:
                     possible_inputs = False
                     break
-                    
+                
+                max_mat_hours = max(max_mat_hours, age)
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return)
-                total_mat_cost += (mat_price * i['count'] * modifier)
+                total_mat_cost += (price * i['count'] * modifier)
             
+            if not possible_inputs: continue
+
             # --- CALCULATIONS ---
-            if not possible_inputs or revenue_price <= 0: continue
-            
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee
-            gross_rev = (revenue_price * r.get("yield", 1) * (1 - MARKET_TAX))
+            gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX))
             
             profit = gross_rev - total_cost
             pct = (profit / total_cost * 100) if total_cost > 0 else 0
@@ -320,7 +322,6 @@ def process_recipe(r, name_map, market_data):
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
                 
-                # Handle Rock/Enchant Tiering
                 if r.get("category") == "rock":
                     input_ench = 0
                     for inp in r['inputs']:
@@ -334,7 +335,7 @@ def process_recipe(r, name_map, market_data):
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit),
                     "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0,
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0),
-                    "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
+                    "Item Age": format_age(final_out_age), "Mat Age": format_age(max_mat_hours),
                     "Return Rate": f"{current_return:.1%}"
                 }
     return best_result
