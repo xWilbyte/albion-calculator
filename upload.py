@@ -2,6 +2,7 @@ import streamlit as st
 import json 
 import re 
 import time 
+import datetime as _dt
 import requests 
 import threading 
 import pandas as pd 
@@ -241,8 +242,20 @@ def fetch_market_data(ids):
                             if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
                             recent_data = data_points[-30:] 
                             avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
-                            most_recent = data_points[-1] 
-                            data_map[item_id][city].update({'volume': int(avg_vol), 'hist_price': most_recent.get("avg_price", 0)}) 
+
+                            # --- CHANGED: choose the newest history point within MAX_AGE hours if available ---
+                            chosen_point = None
+                            for dp in reversed(data_points):
+                                ts = dp.get("timestamp", "N/A")
+                                if get_hours_ago(ts) <= MAX_AGE:
+                                    chosen_point = dp
+                                    break
+
+                            if chosen_point:
+                                data_map[item_id][city].update({'volume': int(avg_vol), 'hist_price': chosen_point.get("avg_price", 0), 'hist_date': chosen_point.get("timestamp", "N/A")})
+                            else:
+                                most_recent = data_points[-1]
+                                data_map[item_id][city].update({'volume': int(avg_vol), 'hist_price': most_recent.get("avg_price", 0), 'hist_date': most_recent.get("timestamp", "N/A")})
         except: continue 
     return data_map 
 
