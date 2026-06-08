@@ -164,6 +164,11 @@ def normalize_id(id_str):
     if not id_str: return id_str
     if "@" in id_str: return id_str
     
+    # FIX: Exclude special enchantment materials that actually keep the _LEVEL prefix in the API
+    ignore_kws = ["FISHSAUCE", "EXTRACT"]
+    if any(kw in id_str for kw in ignore_kws):
+        return id_str
+    
     # Both raw and refined resources use the _LEVELX@X format in the API
     resource_kws = ["_WOOD", "_PLANKS", "_ORE", "_METALBAR", "_FIBER", "_CLOTH", "_HIDE", "_LEATHER", "_ROCK", "_STONEBLOCK"]
     if any(kw in id_str for kw in resource_kws):
@@ -238,7 +243,7 @@ def fetch_market_data(ids):
     unique_ids = list(set(ids)) 
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
-     
+      
     # --- 1. FETCH LIVE PRICES ---
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
@@ -257,7 +262,7 @@ def fetch_market_data(ids):
                     if price > 0: 
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
-     
+      
     # --- 2. FETCH HISTORY ---
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
