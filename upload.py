@@ -219,6 +219,7 @@ def fetch_market_data(ids):
                     price = row.get("sell_price_min", 0) 
                     if item_id not in data_map: data_map[item_id] = {} 
                     
+                    # Added hist_date initialization to match CLI script
                     if city not in data_map[item_id]: 
                         data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
                         
@@ -250,6 +251,7 @@ def fetch_market_data(ids):
                             avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
                             most_recent = data_points[-1] 
                             
+                            # Added hist_date saving mechanism
                             data_map[item_id][city].update({
                                 'volume': int(avg_vol), 
                                 'hist_price': most_recent.get("avg_price", 0),
@@ -270,61 +272,60 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {})
             
-            # Check availability
-            revenue = out_data.get('price', 0)
-            out_date = out_data.get('date', 'N/A')
-            
-            if revenue == 0 or get_hours_ago(out_date) > max_age:
-                revenue = out_data.get('hist_price', 0)
-                out_date = out_data.get('hist_date', 'N/A')
+            # --- FALLBACK LOGIC FOR OUTPUT ---
+            if out_data.get('date', 'N/A') != 'N/A' and get_hours_ago(out_data.get('date')) <= max_age:
+                revenue, out_date = out_data.get('price', 0), out_data.get('date')
+            else:
+                revenue, out_date = out_data.get('hist_price', 0), out_data.get('hist_date', 'N/A')
             
             out_hours = get_hours_ago(out_date)
             
-            # --- Logic: If revenue still 0, we treat it as missing/N/A ---
-            has_valid_output = (revenue > 0)
+            if out_hours > max_age or revenue == 0:
+                continue
             
             current_return = get_rrr(craft_city, r.get("category", ""), use_focus, is_refining)
             
             total_mat_cost = 0.0
             max_mat_hours = 0
-            all_inputs_have_price = True
+            valid_inputs = True
 
             for i in r['inputs']: 
                 mat_id = i['id'] 
                 mat_data = market_data.get(mat_id, {}).get(craft_city, {})
                 
-                mat_price = mat_data.get('price', 0)
-                mat_date = mat_data.get('date', 'N/A')
-                
-                if mat_price == 0 or get_hours_ago(mat_date) > max_age:
-                    mat_price = mat_data.get('hist_price', 0)
-                    mat_date = mat_data.get('hist_date', 'N/A')
-                
-                if mat_price == 0: all_inputs_have_price = False
-                
+                # --- FALLBACK LOGIC FOR MATERIALS ---
+                if mat_data.get('date', 'N/A') != 'N/A' and get_hours_ago(mat_data.get('date')) <= max_age:
+                    mat_price, mat_date = mat_data.get('price', 0), mat_data.get('date')
+                else:
+                    mat_price, mat_date = mat_data.get('hist_price', 0), mat_data.get('hist_date', 'N/A')
+
                 mat_hours = get_hours_ago(mat_date)
+                
+                if mat_hours > max_age or mat_price == 0:
+                    valid_inputs = False
+                    break
+                
                 max_mat_hours = max(max_mat_hours, mat_hours)
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
                 total_mat_cost += (mat_price * i['count'] * modifier) 
             
+            if not valid_inputs:
+                continue
+
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (station_cost / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
             
-            # Calculate Profit
-            if has_valid_output and all_inputs_have_price:
-                gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
-                profit = gross_rev - total_cost 
-                pct = (profit / total_cost * 100) if total_cost > 0 else 0 
-            else:
-                profit = None # Will display as N/A in dataframe
-                pct = -100.0 # Forces visibility
-                gross_rev = 0
+            # Calculated with fallback revenue
+            gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
+            
+            profit = gross_rev - total_cost 
+            pct = (profit / total_cost * 100) if total_cost > 0 else 0 
             
             if pct < min_margin or pct > ignore_margin: continue 
             if out_data.get('volume', 0) < min_vol: continue 
             
-            if profit is None or profit > best_profit: 
-                best_profit = profit if profit is not None else -999999999
+            if profit > best_profit: 
+                best_profit = profit 
                 focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (focus_eff / 10000))) 
                 
                 out_tier = get_tier(r['output'])
@@ -339,11 +340,10 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
 
                 best_result = { 
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
-                    "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": gross_rev if has_valid_output else "N/A",
-                    "Profit Margin%": round(pct, 1), "Profit (Silver)": profit, 
-                    "S/F": int(profit / focus_cost) if (use_focus and focus_cost > 0 and profit is not None) else 0, 
+                    "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev),
+                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), 
+                    "S/F": int(profit / focus_cost) if (use_focus and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), 
-                    "Avg Price (24h)": out_data.get('hist_price', 0),
                     "Item Age": format_age(out_hours), 
                     "Mat Age": format_age(max_mat_hours),
                     "Return Rate": f"{current_return:.1%}"
@@ -464,7 +464,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if st.session_state.show_profit: cols.append("Profit (Silver)")
     if st.session_state.use_focus: cols.extend(["S/F", "Focus"])
     if st.session_state.show_vol: cols.append("Vol Sold (24h)")
-    if st.session_state.show_avg_price: cols.append("Avg Price (24h)")
     if st.session_state.show_item_age: cols.append("Item Age")
     if st.session_state.show_mat_age: cols.append("Mat Age")
     if st.session_state.show_rrr: cols.append("Return Rate") 
@@ -485,7 +484,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"),
         "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
-        "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
         "Return Rate": st.column_config.TextColumn("Return Rate", alignment="center"),
@@ -505,6 +503,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                     mat_id = item['id'] 
                     m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
                     
+                    # Material history fallback for expanded view
                     if m_data.get('date', 'N/A') != 'N/A' and get_hours_ago(m_data.get('date')) <= st.session_state.max_age:
                         price = m_data.get('price', 0)
                     else:
