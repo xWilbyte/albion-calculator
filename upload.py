@@ -455,7 +455,25 @@ if st.button("Click to Calculate", use_container_width=True):
                     for r in raw_res:
                         if "FACTION" in get_id(r).upper(): return 
 
-                inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
+                # --- SPECIAL CAPE FIX: Extract enchantment level to apply to base materials ---
+                lvl_match = re.search(r"_LEVEL(\d+)", output)
+                lvl = lvl_match.group(1) if lvl_match else None
+
+                inputs = []
+                for r in raw_res:
+                    in_id = get_id(r)
+                    if not in_id: continue
+                    
+                    # Fix: Enforce correct enchanted base cape material for special capes
+                    if lvl and re.match(r"^T\d+_CAPE$", in_id):
+                        in_id = f"{in_id}@{lvl}"
+                        
+                    inputs.append({
+                        "id": in_id, 
+                        "count": int(r.get("@count", 1)), 
+                        "ignore_return": r.get("@maxreturnamount") == "0"
+                    })
+                # ------------------------------------------------------------------------------
                 
                 # --- STATION COST FIX: Dynamically calculate missing Item Value from inputs ---
                 if val == 0 and inputs:
