@@ -157,12 +157,15 @@ limiter = RateLimiter(1/150)
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
-    
+
     # keep special raw names as-is
     if "FISHSAUCE" in id_str or "ESSENCE" in id_str or "EXTRACT" in id_str:
         return id_str
 
-    # Correct replacement: _LEVELn -> @n
+    # Preserve the original refine/rock behavior (keep _LEVELn then append @n)
+    if category == "refine" or category == "rock":
+        return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
+    # For other categories convert _LEVELn -> @n
     return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_base_name(id_str):
