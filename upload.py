@@ -165,6 +165,10 @@ def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
     
+    # Exceptions: Fish sauce and Alchemy extracts use native _LEVEL formatting without @ 
+    if "FISHSAUCE" in id_str or "ALCHEMY_EXTRACT" in id_str:
+        return id_str
+    
     # Updated: Include all refined resource types so they all get the correct API format
     refined_categories = ["hide", "rock", "fiber", "wood", "ore", "refine"]
     
@@ -191,8 +195,15 @@ def to_list(x):
 def get_tier(id_str): 
     tier_match = re.search(r"T([1-8])", id_str)
     tier = tier_match.group(1) if tier_match else "0"
+    
     ench_match = re.search(r"@([1-4])", id_str)
     if ench_match: return f"{tier}.{ench_match.group(1)}"
+    
+    # Format Fish Sauce / Extract levels to display properly as enhancements (1.1, 1.2, etc.)
+    level_match = re.search(r"_LEVEL([1-4])", id_str)
+    if level_match and ("FISHSAUCE" in id_str or "ALCHEMY_EXTRACT" in id_str):
+        return f"{tier}.{level_match.group(1)}"
+        
     return tier
 
 def get_hours_ago(date_str): 
