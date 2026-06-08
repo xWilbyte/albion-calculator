@@ -289,7 +289,12 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
             max_mat_hours = 0
             valid_inputs = True
 
+            all_inputs_have_price = True
             for i in r['inputs']: 
+
+                if mat_price == 0:
+                    all_inputs_have_price = False
+                
                 mat_id = i['id'] 
                 mat_data = market_data.get(mat_id, {}).get(craft_city, {})
                 
@@ -314,15 +319,18 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
 
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (station_cost / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
+
             
-            # Calculated with fallback revenue
-            gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
-            
-            profit = gross_rev - total_cost 
-            pct = (profit / total_cost * 100) if total_cost > 0 else 0 
-            
+            if revenue > 0 and all_inputs_have_price: 
+                profit = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) - total_cost
+                pct = (profit / total_cost * 100) if total_cost > 0 else 0
+            else:
+                profit = None 
+                pct = -100.0  
+
+            # Filtering logic
             if pct < min_margin or pct > ignore_margin: continue 
-            if out_data.get('volume', 0) < min_vol: continue 
+            if out_data.get('volume', 0) < min_vol: continue
             
             if profit > best_profit: 
                 best_profit = profit 
