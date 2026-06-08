@@ -280,7 +280,7 @@ def process_recipe(r, name_map, market_data):
                 has_hist_price = (out_data.get('hist_price', 0) > 0)
 
                 if not (has_fresh_price or has_hist_price):
-                continue
+                    continue
 
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
