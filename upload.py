@@ -160,10 +160,8 @@ def normalize_id(id_str, category="refine"):
     if "FISHSAUCE" in id_str or "ESSENCE" in id_str or "EXTRACT" in id_str:
         return id_str
 
-    if category == "refine" or category == "rock":
-        return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
-    else:
-        return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
+    # Standardize all enchanted items to the @X format
+    return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_base_name(id_str):
     return re.sub(r"(@\d+|(_LEVEL\d+(@\d+)?))", "", id_str)
@@ -219,7 +217,6 @@ def fetch_market_data(ids):
                     price = row.get("sell_price_min", 0) 
                     if item_id not in data_map: data_map[item_id] = {} 
                     
-                    # Added hist_date initialization to match CLI script
                     if city not in data_map[item_id]: 
                         data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
                         
@@ -251,7 +248,6 @@ def fetch_market_data(ids):
                             avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
                             most_recent = data_points[-1] 
                             
-                            # Added hist_date saving mechanism
                             data_map[item_id][city].update({
                                 'volume': int(avg_vol), 
                                 'hist_price': most_recent.get("avg_price", 0),
@@ -344,6 +340,7 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), 
                     "S/F": int(profit / focus_cost) if (use_focus and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), 
+                    "Avg Price (24h)": int(out_data.get('hist_price', 0)),
                     "Item Age": format_age(out_hours), 
                     "Mat Age": format_age(max_mat_hours),
                     "Return Rate": f"{current_return:.1%}"
@@ -464,6 +461,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if st.session_state.show_profit: cols.append("Profit (Silver)")
     if st.session_state.use_focus: cols.extend(["S/F", "Focus"])
     if st.session_state.show_vol: cols.append("Vol Sold (24h)")
+    if st.session_state.show_avg_price: cols.append("Avg Price (24h)")
     if st.session_state.show_item_age: cols.append("Item Age")
     if st.session_state.show_mat_age: cols.append("Mat Age")
     if st.session_state.show_rrr: cols.append("Return Rate") 
@@ -484,6 +482,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "S/F": st.column_config.NumberColumn("S/F", format="%,d", alignment="center"),
         "Focus": st.column_config.NumberColumn("Focus", format="%,d", alignment="center"),
         "Vol Sold (24h)": st.column_config.NumberColumn("Vol Sold (24h)", format="%,d", alignment="center"),
+        "Avg Price (24h)": st.column_config.NumberColumn("Avg Price (24h)", format="%,d", alignment="center"),
         "Item Age": st.column_config.TextColumn("Item Age", alignment="center"),
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
         "Return Rate": st.column_config.TextColumn("Return Rate", alignment="center"),
