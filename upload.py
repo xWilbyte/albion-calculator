@@ -280,7 +280,7 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
             
             out_hours = get_hours_ago(out_date)
             
-            if out_hours > max_age or revenue == 0:
+            if out_hours > max_age:
                 continue
             
             current_return = get_rrr(craft_city, r.get("category", ""), use_focus, is_refining)
@@ -301,7 +301,7 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
 
                 mat_hours = get_hours_ago(mat_date)
                 
-                if mat_hours > max_age or mat_price == 0:
+                if mat_hours > max_age:
                     valid_inputs = False
                     break
                 
