@@ -107,10 +107,11 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts"], key="craft_type")
+    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts", "Capes"], key="craft_type")
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
     elif ui_choice == "Refining": CRAFT_TYPE = "refine"
     elif ui_choice == "Mounts": CRAFT_TYPE = "mount"
+    elif ui_choice == "Capes": CRAFT_TYPE = "cape"
     else: CRAFT_TYPE = "food"
 
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -338,7 +339,6 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 
                 # --- S/F CALCULATION LOGIC FIX ---
-                # --- S/F CALCULATION LOGIC FIX ---
                 base_batch_focus = r.get("focus_cost", 0) * r.get("yield", 1)
                 focus_cost = int(base_batch_focus * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 
@@ -350,7 +350,6 @@ def process_recipe(r, name_map, market_data):
                     sf_value = int(extra_profit / focus_cost)
                 else:
                     sf_value = 0
-                # ---------------------------------
                 # ---------------------------------
                 
                 out_tier = get_tier(r['output'])
@@ -421,12 +420,16 @@ if st.button("Click to Calculate", use_container_width=True):
             subcat = item.get("@shopsubcategory1", "").lower()
             slottype = item.get("@slottype", "").lower()
             
+            # --- UPDATE: Added explicit handling for the new category "cape" ---
             if CRAFT_TYPE == "refine":
                 is_match = (subcat == "refinedresources")
             elif CRAFT_TYPE == "mount":
                 is_match = (slottype == "mount")
+            elif CRAFT_TYPE == "cape":
+                is_match = (cat_tag == "cape")
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
+            # -------------------------------------------------------------------
             
             if not is_match: continue
             
