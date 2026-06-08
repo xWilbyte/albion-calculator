@@ -257,40 +257,46 @@ def fetch_market_data(ids):
 # ================= PROCESS RECIPE ================= 
 def get_best_price(data, max_age):
     """
-    Helper to return the price and age of the most recent data point
-    that is still within the max_age limit.
+    Helper to get the most recent price <= max_age.
+    Checks live price, then historical price.
     """
-    live_age = get_hours_ago(data.get('date', 'N/A'))
-    hist_age = get_hours_ago(data.get('hist_date', 'N/A'))
+    live_date = data.get('date', 'N/A')
+    hist_date = data.get('hist_date', 'N/A')
+    
+    live_age = get_hours_ago(live_date)
+    hist_age = get_hours_ago(hist_date)
 
     candidates = []
-    if live_age <= max_age:
+    # If live data exists and is fresh
+    if live_date != 'N/A' and live_age <= max_age:
         candidates.append({'price': data.get('price', 0), 'age': live_age})
-    if hist_age <= max_age:
+    
+    # If historical data exists and is fresh
+    if hist_date != 'N/A' and hist_age <= max_age:
         candidates.append({'price': data.get('hist_price', 0), 'age': hist_age})
 
     if not candidates:
         return None, None
 
-    # Sort by age (youngest first) and return that
+    # Return the one with the smallest age (most recent)
     best = min(candidates, key=lambda x: x['age'])
     return best['price'], best['age']
 
-def process_recipe(r, name_map, market_data):
-    # --- OUTPUT DATA ---
+def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities):
+    # This logic assumes r, name_map, and market_data are passed in
     out_key = normalize_for_api(r['output'])
     out_data = market_data.get(out_key, {})
     
-    revenue, out_hours = get_best_price(out_data, MAX_AGE)
+    # Get revenue based on your requirements
+    revenue, out_hours = get_best_price(out_data, max_age)
     
-    if revenue is None: # Means no data was found <= MAX_AGE
+    if revenue is None:
         return None
 
     # --- INPUT DATA ---
     total_mat_cost = 0.0
     max_mat_hours = 0
     material_details = []
-    
     current_return_rate = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE
 
     for i in r['inputs']:
@@ -298,22 +304,22 @@ def process_recipe(r, name_map, market_data):
         mat_name = name_map.get(i['id'], i['id'])
         mat_data = market_data.get(mat_id, {})
         
-        price, age = get_best_price(mat_data, MAX_AGE)
+        price, age = get_best_price(mat_data, max_age)
         
-        if price is None: # Means an input was too old
+        # If any ingredient is missing or too old, discard the whole recipe
+        if price is None:
             return None
         
         ignore_return = i.get('ignore_return', False)
         modifier = 1.0 if ignore_return else (1 - current_return_rate)
         total_mat_cost += (price * i['count'] * modifier)
-
         max_mat_hours = max(max_mat_hours, age)
         material_details.append(f"{mat_name} ({i['count']}x @ {int(price):,})")
 
     # --- CALCULATIONS ---
     nutrition_used = (r.get("item_value", 0) * r.get("yield", 1)) * 0.1125
     station_fee = nutrition_used * (STATION_COST / 100.0)
-
+    
     base_foc = int(r.get("focus_cost", 0))
     real_foc_cost = base_foc * (0.5 ** (FOCUS_EFFICIENCY_LEVEL / 10000))
     focus_cost = int(real_foc_cost * r.get("yield", 1))
@@ -321,33 +327,25 @@ def process_recipe(r, name_map, market_data):
     total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee
     gross_revenue = (revenue * r.get("yield", 1) * (1 - MARKET_TAX))
     
-    # Calculate historical revenue for display using standard history if possible
-    # (Optional: If you want 'Price (24h)' column to match the logic, you can use the hist_price directly)
-    hist_revenue = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
-    
     profit = gross_revenue - total_cost
     pct = (profit / total_cost * 100) if total_cost > 0 else 0
     s_f = (profit / focus_cost) if (focus_cost > 0 and USE_FOCUS) else 0
 
-    if pct < MIN_MARGIN or pct > IGNORE_MARGIN:
-        return None
-    if not SHOW_NEGATIVE and profit < 0:
-        return None
-
-    vol = out_data.get('volume', 0)
-    if vol < MIN_DAILY_VOLUME:
-        return None
+    # Filters
+    if pct < MIN_MARGIN or pct > IGNORE_MARGIN: return None
+    if not SHOW_NEGATIVE and profit < 0: return None
+    if out_data.get('volume', 0) < MIN_DAILY_VOLUME: return None
 
     return {
         "name": name_map.get(r['output'], r['output']),
         "cost": int(total_cost),
         "station_fee": int(station_fee),
         "price": int(gross_revenue), 
-        "hist_price": int(hist_revenue),
+        "hist_price": int(out_data.get('hist_price', 0)),
         "focus": focus_cost,
         "s_f": s_f,
         "pct": pct,
-        "vol": vol,
+        "vol": out_data.get('volume', 0),
         "out_age": format_age(out_hours),
         "mat_age": format_age(max_mat_hours),
         "materials": material_details
