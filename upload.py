@@ -338,12 +338,19 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 
                 # --- S/F CALCULATION LOGIC FIX ---
+                # --- S/F CALCULATION LOGIC FIX ---
                 base_batch_focus = r.get("focus_cost", 0) * r.get("yield", 1)
                 focus_cost = int(base_batch_focus * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 
                 # Calculate the extra silver saved entirely due to focus
                 extra_profit = total_mat_cost_no_focus - total_mat_cost
-                sf_value = int(extra_profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0
+                
+                # Update: Only award S/F if the item actually has a sell price
+                if revenue > 0 and USE_FOCUS and focus_cost > 0:
+                    sf_value = int(extra_profit / focus_cost)
+                else:
+                    sf_value = 0
+                # ---------------------------------
                 # ---------------------------------
                 
                 out_tier = get_tier(r['output'])
