@@ -441,7 +441,7 @@ if st.button("Click to Calculate", use_container_width=True):
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
             
-            if not is_match: continue
+            if not is_match: continue 
             
             tier_match = re.match(r"T([1-8])_", u_name) 
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
@@ -463,29 +463,27 @@ if st.button("Click to Calculate", use_container_width=True):
                     val = total_batch_value / int(c.get("@amountcrafted", 1)) if int(c.get("@amountcrafted", 1)) > 0 else 0
                 # ------------------------------------------------------------------------------
 
+                # --- ENCHANTED FOCUS FIX ---
+                # The Albion JSON data frequently misreports enchanted refining focus by reusing the base tier's values.
+                # We dynamically apply the correct game multipliers for refining enchanted resources to solve the 90 vs 300+ mismatch.
+                base_focus = int(c.get("@craftingfocus", 0))
+                if CRAFT_TYPE == "refine" and enchant_lvl > 0:
+                    enchant_multipliers = {1: 2.0, 2: 3.5, 3: 6.0, 4: 10.5}
+                    base_focus = int(base_focus * enchant_multipliers.get(enchant_lvl, 1.0))
+                # ---------------------------
+
                 if inputs: 
-                    base_focus = int(c.get("@craftingfocus", 0))
-                    actual_focus = base_focus * (2 ** enchant_lvl)
-                    
-                    recipes.append({
-                        "output": normalize_id(output), 
-                        "category": category, 
-                        "inputs": inputs, 
-                        "silver_cost": int(c.get("@silver", 0)), 
-                        "yield": int(c.get("@amountcrafted", 1)), 
-                        "focus_cost": actual_focus, 
-                        "item_value": val
-                    }) 
+                    recipes.append({"output": normalize_id(output), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": base_focus, "item_value": val}) 
 
             for c in reqs: 
-                if c: add_recipe(c, u_name, base_val, cat_tag, 0) 
+                if c: add_recipe(c, u_name, base_val, cat_tag, enchant_lvl=0) 
             enchant = item.get("enchantments") 
             if enchant and CRAFT_TYPE != "mount": 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
                     ench_output = f"{u_name}_LEVEL{lvl}" 
                     for c in to_list(ench.get("craftingrequirements")): 
-                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag, lvl) 
+                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag, enchant_lvl=lvl) 
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']])) 
     with st.spinner('Fetching market data...'): 
