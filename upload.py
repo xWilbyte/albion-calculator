@@ -2,7 +2,6 @@ import streamlit as st
 import json 
 import re 
 import time 
-import datetime as _dt
 import requests 
 import threading 
 import pandas as pd 
@@ -165,8 +164,16 @@ limiter = RateLimiter(1/150)
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
-    # FIXED: Always keep the _LEVEL identifier and append @ + level for consistent API lookup
-    return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
+    
+    # Updated: Include all refined resource types so they all get the correct API format
+    refined_categories = ["hide", "rock", "fiber", "wood", "ore", "refine"]
+    
+    if category.lower() in refined_categories:
+        # Keeps _LEVEL1 and adds @1 resulting in T4_ROCK_LEVEL1@1
+        return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
+    else:
+        # Fallback for non-refined items (Potions/Food)
+        return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_base_name(id_str):
     return re.sub(r"(@\d+|(_LEVEL\d+(@\d+)?))", "", id_str)
@@ -184,20 +191,16 @@ def get_tier(id_str):
     return tier
 
 def get_hours_ago(date_str): 
-    if date_str == "N/A": return 999 
+    if not date_str or date_str == "N/A" or date_str.startswith("0001-01-01"): 
+        return 999 
     try: 
-        dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
+        # Strip trailing 'Z' and fractional seconds that break strptime
+        clean_date = date_str.split('.')[0].replace("Z", "")
+        dt = datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
         diff = datetime.now(timezone.utc) - dt 
         return int(diff.total_seconds() // 3600) 
-    except: return 999 
-
-def format_age(hours): return "N/A" if hours == 999 else f"{hours}h" 
-
-def get_id(x, category): 
-    if not isinstance(x, dict): return None 
-    val = x.get("@uniquename") or x.get("id")
-    if val: return normalize_id(val, category) 
-    return None
+    except: 
+        return 999
 
 # ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
@@ -205,8 +208,8 @@ def fetch_market_data(ids):
     unique_ids = list(set(ids)) 
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
-    
-    # 1. Fetch Current Prices
+     
+    # --- 1. FETCH LIVE PRICES ---
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + BATCH_SIZE] 
@@ -223,13 +226,12 @@ def fetch_market_data(ids):
                     if price > 0: 
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
-    
-    # 2. Fetch History (Updated to capture latest timestamp)
+     
+    # --- 2. FETCH HISTORY (AND UPDATE MISSING DATES) ---
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
-        # Removed time-scale restriction to ensure we get the full range
-        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}" 
+        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}&time-scale=24" 
         try: 
             r = requests.get(url, timeout=30) 
             if r.status_code == 200: 
@@ -244,22 +246,23 @@ def fetch_market_data(ids):
                             if item_id not in data_map: data_map[item_id] = {} 
                             if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
                             
-                            most_recent = data_points[-1]
-                            avg_vol = sum(d.get("item_count", 0) for d in data_points[-30:]) / len(data_points[-30:])
+                            recent_data = data_points[-30:] 
+                            avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
+                            most_recent = data_points[-1] 
                             
-                            # UPDATE: Use the timestamp from history if it's more recent than current date
-                            hist_date = most_recent.get("timestamp")
-                            current_date = data_map[item_id][city].get('date')
-                            
-                            # If we have no date, or the history date is more recent, use history date
-                            if current_date == 'N/A' or (hist_date and hist_date > current_date):
-                                data_map[item_id][city]['date'] = hist_date
-
-                            data_map[item_id][city].update({
+                            update_dict = {
                                 'volume': int(avg_vol), 
                                 'hist_price': most_recent.get("avg_price", 0)
-                            }) 
+                            }
+                            
+                            # THE FIX: Inject the history timestamp if the live date is missing/invalid
+                            current_date = data_map[item_id][city].get('date', 'N/A')
+                            if current_date == 'N/A' or current_date.startswith("0001-01-01"):
+                                update_dict['date'] = most_recent.get("timestamp", 'N/A')
+                            
+                            data_map[item_id][city].update(update_dict) 
         except: continue 
+        
     return data_map
 
 # ================= PROCESS RECIPE ================= 
