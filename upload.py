@@ -105,10 +105,8 @@ ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford"
 
 with st.sidebar.expander("General Settings", expanded=True):
     ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining"], key="craft_type")
-    if ui_choice == "Potions": CRAFT_TYPE = "potion"
-    elif ui_choice == "Refining": CRAFT_TYPE = "refine"
-    else: CRAFT_TYPE = "food"
-
+    
+    # Store dynamic config in session
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
     SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"], key="sell_cities") 
     STATION_COST = st.number_input("Station Cost", value=500, key="station_cost") 
@@ -156,7 +154,6 @@ class RateLimiter:
 limiter = RateLimiter(1/150) 
 
 # ================= UTILS ================= 
-
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
@@ -201,7 +198,7 @@ def get_id(x, category):
 def fetch_market_data(ids): 
     data_map = {} 
     unique_ids = list(set(ids)) 
-    all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
+    all_cities = list(set(st.session_state.craft_cities + st.session_state.sell_cities))
     city_param = ",".join(all_cities) 
     
     for i in range(0, len(unique_ids), BATCH_SIZE): 
@@ -245,26 +242,26 @@ def fetch_market_data(ids):
         except: continue 
     return data_map 
 
-# ================= PROCESS RECIPE ================= 
-def process_recipe(r, name_map, market_data): 
+# ================= PROCESS RECIPE (UPDATED) ================= 
+def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, sell_cities, station_cost, min_margin, ignore_margin, min_vol, use_focus, focus_eff): 
     best_result = None 
     best_profit = -999999999
 
-    for craft_city in CRAFT_CITIES: 
-        for sell_city in SELL_CITIES:
-            is_refining = (CRAFT_TYPE == "refine")
+    for craft_city in craft_cities: 
+        for sell_city in sell_cities:
+            is_refining = (craft_type == "refine")
             
-            # 1. Output Validation (STRICT)
+            # 1. Output Validation
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {})
             out_hours = get_hours_ago(out_data.get('date', 'N/A'))
             
-            # If output data is missing or too old, discard this recipe instance
-            if out_hours > MAX_AGE or out_data.get('price', 0) == 0:
+            # Use local max_age argument
+            if out_hours > max_age or out_data.get('price', 0) == 0:
                 continue
             
             # 2. Return Rate & Cost Calculations
-            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
+            current_return = get_rrr(craft_city, r.get("category", ""), use_focus, is_refining)
             
             total_mat_cost = 0.0
             max_mat_hours = 0
@@ -275,8 +272,7 @@ def process_recipe(r, name_map, market_data):
                 mat_data = market_data.get(mat_id, {}).get(craft_city, {})
                 mat_hours = get_hours_ago(mat_data.get('date', 'N/A'))
                 
-                # If any input is missing or too old, discard the recipe
-                if mat_hours > MAX_AGE or mat_data.get('price', 0) == 0:
+                if mat_hours > max_age or mat_data.get('price', 0) == 0:
                     valid_inputs = False
                     break
                 
@@ -288,19 +284,19 @@ def process_recipe(r, name_map, market_data):
                 continue
 
             # 3. Final Profit Calc
-            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
+            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (station_cost / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
             gross_rev = (out_data.get('price', 0) * r.get("yield", 1) * (1 - MARKET_TAX)) 
             
             profit = gross_rev - total_cost 
             pct = (profit / total_cost * 100) if total_cost > 0 else 0 
             
-            if pct < MIN_MARGIN or pct > IGNORE_MARGIN: continue 
-            if out_data.get('volume', 0) < MIN_DAILY_VOLUME: continue 
+            if pct < min_margin or pct > ignore_margin: continue 
+            if out_data.get('volume', 0) < min_vol: continue 
             
             if profit > best_profit: 
                 best_profit = profit 
-                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
+                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (focus_eff / 10000))) 
                 
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
@@ -316,7 +312,7 @@ def process_recipe(r, name_map, market_data):
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev),
                     "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), 
-                    "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
+                    "S/F": int(profit / focus_cost) if (use_focus and focus_cost > 0) else 0, 
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), 
                     "Item Age": format_age(out_hours), 
                     "Mat Age": format_age(max_mat_hours),
@@ -328,7 +324,7 @@ def process_recipe(r, name_map, market_data):
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
 
 if st.button("Click to Calculate", use_container_width=True): 
-    if not CRAFT_CITIES or not SELL_CITIES: 
+    if not st.session_state.craft_cities or not st.session_state.sell_cities: 
         st.error("Please select at least one Craft city and one Sell city.") 
         st.stop() 
         
@@ -358,6 +354,10 @@ if st.button("Click to Calculate", use_container_width=True):
     recipes = [] 
     name_map = {} 
     
+    # Determine type
+    ui_map = {"Potions": "potion", "Food": "food", "Refining": "refine"}
+    CURRENT_TYPE = ui_map.get(st.session_state.craft_type, "potion")
+    
     for cat, items in root.items(): 
         if not isinstance(items, list): continue 
         for item in items: 
@@ -369,18 +369,18 @@ if st.button("Click to Calculate", use_container_width=True):
             
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
-            is_match = (subcat == "refinedresources") if CRAFT_TYPE == "refine" else (cat_tag == CRAFT_TYPE)
+            is_match = (subcat == "refinedresources") if CURRENT_TYPE == "refine" else (cat_tag == CURRENT_TYPE)
             if not is_match: continue
             
             tier_match = re.match(r"T([1-8])_", u_name) 
-            if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
+            if tier_match and int(tier_match.group(1)) not in st.session_state.allowed_tiers: continue 
             
             base_val = float(item.get("@itemvalue", 0)) 
             reqs = to_list(item.get("craftingrequirements")) 
             
             def add_recipe(c, output, val, category): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
-                if CRAFT_TYPE == "refine":
+                if CURRENT_TYPE == "refine":
                     for r in raw_res:
                         if "FACTION" in get_id(r, category).upper(): return 
 
@@ -404,8 +404,24 @@ if st.button("Click to Calculate", use_container_width=True):
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
     
+    # Execution with explicit arguments
     with ThreadPoolExecutor(max_workers=THREADS) as executor:
-        futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
+        futures = [executor.submit(
+            process_recipe, 
+            r, 
+            name_map, 
+            market_data, 
+            st.session_state.max_age, 
+            CURRENT_TYPE, 
+            st.session_state.craft_cities, 
+            st.session_state.sell_cities, 
+            st.session_state.station_cost, 
+            st.session_state.min_margin, 
+            st.session_state.ignore_margin, 
+            st.session_state.min_vol, 
+            st.session_state.use_focus, 
+            st.session_state.focus_eff
+        ) for r in recipes]
         results = [f.result() for f in futures if f.result()]
         
     st.session_state.df = pd.DataFrame(results) 
@@ -413,19 +429,19 @@ if st.button("Click to Calculate", use_container_width=True):
 if st.session_state.df is not None and not st.session_state.df.empty: 
     df = st.session_state.df 
     cols = ["Tier", "Name"]
-    if len(CRAFT_CITIES) > 1: cols.append("Craft City")
-    if len(SELL_CITIES) > 1: cols.append("Sell City")
+    if len(st.session_state.craft_cities) > 1: cols.append("Craft City")
+    if len(st.session_state.sell_cities) > 1: cols.append("Sell City")
     cols.extend(["Mat Cost", "Sell Price"])
     cols.append("Profit Margin%")
-    if SHOW_PROFIT: cols.append("Profit (Silver)")
-    if USE_FOCUS: cols.extend(["S/F", "Focus"])
-    if SHOW_VOL: cols.append("Vol Sold (24h)")
-    if SHOW_ITEM_AGE: cols.append("Item Age")
-    if SHOW_MAT_AGE: cols.append("Mat Age")
-    if SHOW_RRR: cols.append("Return Rate") 
+    if st.session_state.show_profit: cols.append("Profit (Silver)")
+    if st.session_state.use_focus: cols.extend(["S/F", "Focus"])
+    if st.session_state.show_vol: cols.append("Vol Sold (24h)")
+    if st.session_state.show_item_age: cols.append("Item Age")
+    if st.session_state.show_mat_age: cols.append("Mat Age")
+    if st.session_state.show_rrr: cols.append("Return Rate") 
     
     display_df = df[cols].copy()
-    sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
+    sort_col = "S/F" if st.session_state.use_focus else "Profit Margin%"
     if sort_col in display_df.columns: display_df = display_df.sort_values(by=sort_col, ascending=False) 
     
     col_config = {
