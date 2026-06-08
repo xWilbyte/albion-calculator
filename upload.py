@@ -175,6 +175,11 @@ def normalize_id(id_str, category="refine"):
         # Fallback for non-refined items (Potions/Food)
         return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
+def get_id(r, category="refine"):
+    if isinstance(r, dict):
+        return normalize_id(r.get("@uniquename"), category)
+    return ""
+
 def get_base_name(id_str):
     return re.sub(r"(@\d+|(_LEVEL\d+(@\d+)?))", "", id_str)
 
@@ -201,6 +206,10 @@ def get_hours_ago(date_str):
         return int(diff.total_seconds() // 3600) 
     except: 
         return 999
+
+def format_age(hours):
+    if hours >= 999: return "N/A"
+    return f"{hours}h"
 
 # ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
@@ -253,7 +262,7 @@ def fetch_market_data(ids):
                             update_dict = {
                                 'volume': int(avg_vol), 
                                 'hist_price': most_recent.get("avg_price", 0)
-                            }
+                            } 
                             
                             # THE FIX: Inject the history timestamp if the live date is missing/invalid
                             current_date = data_map[item_id][city].get('date', 'N/A')
