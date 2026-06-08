@@ -420,16 +420,16 @@ if st.button("Click to Calculate", use_container_width=True):
             subcat = item.get("@shopsubcategory1", "").lower()
             slottype = item.get("@slottype", "").lower()
             
-            # --- UPDATE: Added explicit handling for the new category "cape" ---
+            # --- UPDATE: Changed to filter Capes by slottype instead of cat_tag ---
             if CRAFT_TYPE == "refine":
                 is_match = (subcat == "refinedresources")
             elif CRAFT_TYPE == "mount":
                 is_match = (slottype == "mount")
             elif CRAFT_TYPE == "cape":
-                is_match = (cat_tag == "cape")
+                is_match = (slottype == "cape")
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
-            # -------------------------------------------------------------------
+            # ----------------------------------------------------------------------
             
             if not is_match: continue
             
