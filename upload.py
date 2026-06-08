@@ -164,17 +164,14 @@ def normalize_id(id_str):
     if not id_str: return id_str
     if "@" in id_str: return id_str
     
-    # FIX: Exclude special enchantment materials that actually keep the _LEVEL prefix in the API
     ignore_kws = ["FISHSAUCE", "EXTRACT"]
     if any(kw in id_str for kw in ignore_kws):
         return id_str
     
-    # Both raw and refined resources use the _LEVELX@X format in the API
     resource_kws = ["_WOOD", "_PLANKS", "_ORE", "_METALBAR", "_FIBER", "_CLOTH", "_HIDE", "_LEATHER", "_ROCK", "_STONEBLOCK"]
     if any(kw in id_str for kw in resource_kws):
         return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
     else:
-        # Gear, weapons, food, and potions drop the _LEVEL prefix
         return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
 def get_id(r):
@@ -201,7 +198,6 @@ def get_hours_ago(date_str):
     if not date_str or date_str == "N/A" or date_str.startswith("0001-01-01"): 
         return 999 
     try: 
-        # Strip trailing 'Z' and fractional seconds
         clean_date = date_str.split('.')[0].replace("Z", "")
         dt = datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
         diff = datetime.now(timezone.utc) - dt 
@@ -214,25 +210,18 @@ def format_age(hours):
     return f"{hours}h"
 
 def get_active_price(item_data, max_age):
-    """
-    Safely determines whether to use live or historical price based on MAX_AGE.
-    Returns (price_to_use, actual_age_of_that_price)
-    """
     live_price = item_data.get('price', 0)
     live_age = get_hours_ago(item_data.get('date', 'N/A'))
     
     hist_price = item_data.get('hist_price', 0)
     hist_age = get_hours_ago(item_data.get('hist_date', 'N/A'))
 
-    # Prefer live price if valid and within max_age
     if live_price > 0 and live_age <= max_age:
         return live_price, live_age
         
-    # Fallback to history if live is stale or missing
     if hist_price > 0 and hist_age <= max_age:
         return hist_price, hist_age
         
-    # If both are stale/missing, return whichever is newer (will likely be filtered out later)
     if live_age <= hist_age:
         return live_price, live_age
     return hist_price, hist_age
@@ -244,7 +233,6 @@ def fetch_market_data(ids):
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
       
-    # --- 1. FETCH LIVE PRICES ---
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + BATCH_SIZE] 
@@ -263,11 +251,9 @@ def fetch_market_data(ids):
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
       
-    # --- 2. FETCH HISTORY ---
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
-        # FIX: Removed the erroneous ".json" that broke multi-item batching
         url = f"{HISTORY_URL}{','.join(chunk)}?locations={city_param}&time-scale=24" 
         try: 
             r = requests.get(url, timeout=30) 
@@ -292,7 +278,7 @@ def fetch_market_data(ids):
                             update_dict = {
                                 'volume': int(avg_vol), 
                                 'hist_price': most_recent.get("avg_price", 0),
-                                'hist_date': most_recent.get("timestamp", 'N/A') # FIX: Explicitly track history age
+                                'hist_date': most_recent.get("timestamp", 'N/A')
                             } 
                             data_map[item_id][city].update(update_dict) 
         except: continue 
@@ -308,13 +294,11 @@ def process_recipe(r, name_map, market_data):
         for sell_city in SELL_CITIES:
             is_refining = (CRAFT_TYPE == "refine")
             
-            # Dynamic Return Rate Calculation
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
             
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
             
-            # FIX: Safely retrieve active price and its correct corresponding age
             revenue, out_hours = get_active_price(out_data, MAX_AGE)
             
             total_mat_cost = 0.0 
@@ -342,7 +326,12 @@ def process_recipe(r, name_map, market_data):
             
             if profit > best_profit: 
                 best_profit = profit 
-                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
+                
+                # --- CORRECTED FOCUS CALCULATION ---
+                # Multiply the API's base focus cost by the yield batch to find the true starting focus
+                base_batch_focus = r.get("focus_cost", 0) * r.get("yield", 1)
+                focus_cost = int(base_batch_focus * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
+                # -----------------------------------
                 
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
