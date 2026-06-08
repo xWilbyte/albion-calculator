@@ -255,67 +255,89 @@ def fetch_market_data(ids):
     return data_map 
 
 # ================= PROCESS RECIPE ================= 
-def process_recipe(r, name_map, market_data): 
-    best_result = None 
+def process_recipe(r, name_map, market_data):
+    best_result = None
     best_profit = -999999999
 
-    for craft_city in CRAFT_CITIES: 
+    for craft_city in CRAFT_CITIES:
         for sell_city in SELL_CITIES:
             is_refining = (CRAFT_TYPE == "refine")
-            
-            # Dynamic Return Rate Calculation
             current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
             
+            # --- OUTPUT PRICE LOGIC ---
             out_key = r['output']
-            out_data = market_data.get(out_key, {}).get(sell_city, {}) 
-            revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
-            out_hours = get_hours_ago(out_data.get('date', 'N/A')) 
+            out_data = market_data.get(out_key, {}).get(sell_city, {})
+            live_out_price = out_data.get('price', 0)
+            out_hours = get_hours_ago(out_data.get('date', 'N/A'))
             
-            total_mat_cost = 0.0 
-            max_mat_hours = 0 
-            for i in r['inputs']: 
-                mat_id = i['id'] 
-                mat_data = market_data.get(mat_id, {}).get(craft_city, {}) 
-                price = mat_data.get('price', 0) if (mat_data.get('date') != 'N/A' and get_hours_ago(mat_data.get('date')) <= MAX_AGE) else mat_data.get('hist_price', 0) 
-                max_mat_hours = max(max_mat_hours, get_hours_ago(mat_data.get('date', 'N/A'))) 
-                modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
-                total_mat_cost += (price * i['count'] * modifier) 
+            # Use Live price if fresh, else use Hist
+            if out_hours <= MAX_AGE and live_out_price > 0:
+                revenue_price = live_out_price
+            else:
+                revenue_price = out_data.get('hist_price', 0)
             
-            if out_hours > MAX_AGE or max_mat_hours > MAX_AGE: continue 
-            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0) 
-            total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
-            gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
-            avg_rev = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
-            profit = gross_rev - total_cost 
-            pct = (profit / total_cost * 100) if total_cost > 0 else 0 
+            # --- INPUT PRICE LOGIC ---
+            total_mat_cost = 0.0
+            max_mat_hours = 0
+            possible_inputs = True
             
-            if pct < MIN_MARGIN or pct > IGNORE_MARGIN: continue 
-            if out_data.get('volume', 0) < MIN_DAILY_VOLUME: continue 
-            
-            if profit > best_profit: 
-                best_profit = profit 
-                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
+            for i in r['inputs']:
+                mat_id = i['id']
+                mat_data = market_data.get(mat_id, {}).get(craft_city, {})
+                live_mat_price = mat_data.get('price', 0)
+                mat_hours = get_hours_ago(mat_data.get('date', 'N/A'))
+                max_mat_hours = max(max_mat_hours, mat_hours)
                 
+                # Determine best price for material
+                if mat_hours <= MAX_AGE and live_mat_price > 0:
+                    mat_price = live_mat_price
+                else:
+                    mat_price = mat_data.get('hist_price', 0)
+                
+                if mat_price <= 0: # If we have 0 price for a mat, we can't calculate
+                    possible_inputs = False
+                    break
+                    
+                modifier = 1.0 if i.get('ignore_return') else (1 - current_return)
+                total_mat_cost += (mat_price * i['count'] * modifier)
+            
+            # --- CALCULATIONS ---
+            if not possible_inputs or revenue_price <= 0: continue
+            
+            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
+            total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee
+            gross_rev = (revenue_price * r.get("yield", 1) * (1 - MARKET_TAX))
+            
+            profit = gross_rev - total_cost
+            pct = (profit / total_cost * 100) if total_cost > 0 else 0
+            
+            if pct < MIN_MARGIN or pct > IGNORE_MARGIN: continue
+            if out_data.get('volume', 0) < MIN_DAILY_VOLUME: continue
+            
+            if profit > best_profit:
+                best_profit = profit
+                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000)))
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
                 
+                # Handle Rock/Enchant Tiering
                 if r.get("category") == "rock":
                     input_ench = 0
                     for inp in r['inputs']:
                         match = re.search(r"@([1-4])", inp['id'])
-                        if match:
-                            input_ench = max(input_ench, int(match.group(1)))
-                    if input_ench > 0:
-                        out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
+                        if match: input_ench = max(input_ench, int(match.group(1)))
+                    if input_ench > 0: out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
 
-                best_result = { 
-                    "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
-                    "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
-                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
-                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
+                best_result = {
+                    "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name,
+                    "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev),
+                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit),
+                    "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0,
+                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0),
+                    "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
                     "Return Rate": f"{current_return:.1%}"
-                } 
-    return best_result 
+                }
+    return best_result
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
