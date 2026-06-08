@@ -449,7 +449,7 @@ if st.button("Click to Calculate", use_container_width=True):
             base_val = float(item.get("@itemvalue", 0)) 
             reqs = to_list(item.get("craftingrequirements")) 
             
-            def add_recipe(c, output, val, category): 
+            def add_recipe(c, output, val, category, enchant_lvl=0): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
@@ -464,17 +464,28 @@ if st.button("Click to Calculate", use_container_width=True):
                 # ------------------------------------------------------------------------------
 
                 if inputs: 
-                    recipes.append({"output": normalize_id(output), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
+                    base_focus = int(c.get("@craftingfocus", 0))
+                    actual_focus = base_focus * (2 ** enchant_lvl)
+                    
+                    recipes.append({
+                        "output": normalize_id(output), 
+                        "category": category, 
+                        "inputs": inputs, 
+                        "silver_cost": int(c.get("@silver", 0)), 
+                        "yield": int(c.get("@amountcrafted", 1)), 
+                        "focus_cost": actual_focus, 
+                        "item_value": val
+                    }) 
 
             for c in reqs: 
-                if c: add_recipe(c, u_name, base_val, cat_tag) 
+                if c: add_recipe(c, u_name, base_val, cat_tag, 0) 
             enchant = item.get("enchantments") 
             if enchant and CRAFT_TYPE != "mount": 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
                     ench_output = f"{u_name}_LEVEL{lvl}" 
                     for c in to_list(ench.get("craftingrequirements")): 
-                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag) 
+                        if c: add_recipe(c, ench_output, base_val * (2 ** lvl), cat_tag, lvl) 
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']])) 
     with st.spinner('Fetching market data...'): 
