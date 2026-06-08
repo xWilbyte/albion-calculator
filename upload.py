@@ -137,7 +137,6 @@ with st.sidebar.expander("Display Options"):
     SHOW_RRR = st.checkbox("Show Return Rate", value=False, key="show_rrr")
 
 st.sidebar.button("Restore Default Settings", on_click=reset_defaults, use_container_width=True)
-st.sidebar.button("Refresh / Clear Cache", on_click=st.cache_data.clear, use_container_width=True)
 
 # ================= CONSTANTS & RATE LIMITER ================= 
 API_URL = "https://west.albion-online-data.com/api/v2/stats/prices/" 
@@ -202,10 +201,10 @@ def get_id(x, category):
     return None
 
 # ================= MARKET FETCH ================= 
-@st.cache_data
-def fetch_market_data(ids, all_cities): 
+def fetch_market_data(ids): 
     data_map = {} 
     unique_ids = list(set(ids)) 
+    all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
     
     for i in range(0, len(unique_ids), BATCH_SIZE): 
@@ -388,7 +387,7 @@ if st.button("Click to Calculate", use_container_width=True):
 
     lookup_ids = list(set([r['output'] for r in recipes] + [i['id'] for r in recipes for i in r['inputs']])) 
     with st.spinner('Fetching market data...'): 
-        market_data = fetch_market_data(lookup_ids, list(set(CRAFT_CITIES + SELL_CITIES)))
+        market_data = fetch_market_data(lookup_ids) 
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
     
