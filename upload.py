@@ -341,7 +341,8 @@ def process_recipe(r, name_map, market_data):
                 best_profit = profit 
                 
                 # --- S/F CALCULATION LOGIC FIX ---
-                base_batch_focus = r.get("focus_cost", 0) * r.get("yield", 1)
+                # Focus in the JSON is already per batch. Removed the * r.get("yield", 1) 
+                base_batch_focus = r.get("focus_cost", 0)
                 focus_cost = int(base_batch_focus * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
                 
                 # Calculate the extra silver saved entirely due to focus
@@ -409,6 +410,15 @@ if st.button("Click to Calculate", use_container_width=True):
     recipes = [] 
     name_map = {} 
     
+    # --- STATION COST FIX: Create a global dict to hold all item values for fallback ---
+    item_value_dict = {}
+    for cat, items_list in root.items():
+        if isinstance(items_list, list):
+            for itm in items_list:
+                if isinstance(itm, dict) and "@uniquename" in itm:
+                    item_value_dict[itm["@uniquename"]] = float(itm.get("@itemvalue", 0))
+    # -----------------------------------------------------------------------------------
+    
     for cat, items in root.items(): 
         if not isinstance(items, list): continue 
         for item in items: 
@@ -422,7 +432,6 @@ if st.button("Click to Calculate", use_container_width=True):
             subcat = item.get("@shopsubcategory1", "").lower()
             slottype = item.get("@slottype", "").lower()
             
-            # --- UPDATE: Changed to filter Capes by slottype instead of cat_tag ---
             if CRAFT_TYPE == "refine":
                 is_match = (subcat == "refinedresources")
             elif CRAFT_TYPE == "mount":
@@ -431,7 +440,6 @@ if st.button("Click to Calculate", use_container_width=True):
                 is_match = (slottype == "cape")
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
-            # ----------------------------------------------------------------------
             
             if not is_match: continue
             
@@ -448,6 +456,13 @@ if st.button("Click to Calculate", use_container_width=True):
                         if "FACTION" in get_id(r).upper(): return 
 
                 inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
+                
+                # --- STATION COST FIX: Dynamically calculate missing Item Value from inputs ---
+                if val == 0 and inputs:
+                    total_batch_value = sum(item_value_dict.get(inp["id"], 0) * inp["count"] for inp in inputs)
+                    val = total_batch_value / int(c.get("@amountcrafted", 1)) if int(c.get("@amountcrafted", 1)) > 0 else 0
+                # ------------------------------------------------------------------------------
+
                 if inputs: 
                     recipes.append({"output": normalize_id(output), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
 
