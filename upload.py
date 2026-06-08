@@ -106,7 +106,6 @@ ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford"
 with st.sidebar.expander("General Settings", expanded=True):
     ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining"], key="craft_type")
     
-    # Store dynamic config in session
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
     SELL_CITIES = st.multiselect("Sell City", ALL_CITIES, default=["Bridgewatch"], key="sell_cities") 
     STATION_COST = st.number_input("Station Cost", value=500, key="station_cost") 
@@ -157,6 +156,11 @@ limiter = RateLimiter(1/150)
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
+    
+    # Fish sauce and potion extracts use _LEVEL in their base API names, not as an enchantment suffix.
+    if "FISHSAUCE" in id_str or "ESSENCE" in id_str or "EXTRACT" in id_str:
+        return id_str
+
     if category == "refine" or category == "rock":
         return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
     else:
@@ -178,12 +182,15 @@ def get_tier(id_str):
     return tier
 
 def get_hours_ago(date_str): 
-    if date_str == "N/A": return 999 
+    if date_str == "N/A" or not date_str: return 999 
     try: 
-        dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
+        # Safely truncate to avoid millisecond crashes (e.g. "2023-10-25T14:32:01.000Z" -> "2023-10-25T14:32:01")
+        clean_date = date_str[:19]
+        dt = datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
         diff = datetime.now(timezone.utc) - dt 
         return int(diff.total_seconds() // 3600) 
-    except: return 999 
+    except: 
+        return 999 
 
 def format_age(hours):
     return "N/A" if hours == 999 else f"{hours}h"
@@ -242,7 +249,7 @@ def fetch_market_data(ids):
         except: continue 
     return data_map 
 
-# ================= PROCESS RECIPE (UPDATED) ================= 
+# ================= PROCESS RECIPE ================= 
 def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, sell_cities, station_cost, min_margin, ignore_margin, min_vol, use_focus, focus_eff): 
     best_result = None 
     best_profit = -999999999
@@ -251,16 +258,13 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
         for sell_city in sell_cities:
             is_refining = (craft_type == "refine")
             
-            # 1. Output Validation
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {})
             out_hours = get_hours_ago(out_data.get('date', 'N/A'))
             
-            # Use local max_age argument
             if out_hours > max_age or out_data.get('price', 0) == 0:
                 continue
             
-            # 2. Return Rate & Cost Calculations
             current_return = get_rrr(craft_city, r.get("category", ""), use_focus, is_refining)
             
             total_mat_cost = 0.0
@@ -283,7 +287,6 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities, 
             if not valid_inputs:
                 continue
 
-            # 3. Final Profit Calc
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (station_cost / 100.0)
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
             gross_rev = (out_data.get('price', 0) * r.get("yield", 1) * (1 - MARKET_TAX)) 
@@ -354,7 +357,6 @@ if st.button("Click to Calculate", use_container_width=True):
     recipes = [] 
     name_map = {} 
     
-    # Determine type
     ui_map = {"Potions": "potion", "Food": "food", "Refining": "refine"}
     CURRENT_TYPE = ui_map.get(st.session_state.craft_type, "potion")
     
@@ -404,7 +406,6 @@ if st.button("Click to Calculate", use_container_width=True):
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
     
-    # Execution with explicit arguments
     with ThreadPoolExecutor(max_workers=THREADS) as executor:
         futures = [executor.submit(
             process_recipe, 
