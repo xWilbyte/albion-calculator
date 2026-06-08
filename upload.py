@@ -26,7 +26,7 @@ def get_rrr(city, category, use_focus, is_refining):
     category_key = category.lower() if category else ""
     bonus_city = RRR_BONUS_MAP.get(category_key)
     is_bonus_city = (city == bonus_city)
-    
+
     if is_refining:
         if use_focus:
             return 0.539 if is_bonus_city else 0.435
@@ -164,10 +164,10 @@ limiter = RateLimiter(1/150)
 def normalize_id(id_str, category="refine"):
     if not id_str: return id_str
     if "@" in id_str: return id_str
-    
+
     # Updated: Include all refined resource types so they all get the correct API format
     refined_categories = ["hide", "rock", "fiber", "wood", "ore", "refine"]
-    
+
     if category.lower() in refined_categories:
         # Keeps _LEVEL1 and adds @1 resulting in T4_ROCK_LEVEL1@1
         return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
@@ -212,7 +212,7 @@ def fetch_market_data(ids):
     unique_ids = list(set(ids)) 
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
-    
+
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + BATCH_SIZE] 
@@ -229,7 +229,7 @@ def fetch_market_data(ids):
                     if price > 0: 
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
-    
+
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
@@ -257,69 +257,143 @@ def fetch_market_data(ids):
 # ================= PROCESS RECIPE ================= 
 def get_best_price(data, max_age):
     """
-    Helper to get the most recent price <= max_age.
-    Checks live price, then historical price.
+    Helper to return the price and age of the most recent data point
+    that is still within the max_age limit.
     """
-    live_date = data.get('date', 'N/A')
-    hist_date = data.get('hist_date', 'N/A')
-    
-    live_age = get_hours_ago(live_date)
-    hist_age = get_hours_ago(hist_date)
+    live_age = get_hours_ago(data.get('date', 'N/A'))
+    hist_age = get_hours_ago(data.get('hist_date', 'N/A'))
 
     candidates = []
-    # If live data exists and is fresh
-    if live_date != 'N/A' and live_age <= max_age:
+    if live_age <= max_age:
         candidates.append({'price': data.get('price', 0), 'age': live_age})
-    
-    # If historical data exists and is fresh
-    if hist_date != 'N/A' and hist_age <= max_age:
+    if hist_age <= max_age:
         candidates.append({'price': data.get('hist_price', 0), 'age': hist_age})
 
     if not candidates:
         return None, None
 
-    # Return the one with the smallest age (most recent)
+    # Sort by age (youngest first) and return that
     best = min(candidates, key=lambda x: x['age'])
     return best['price'], best['age']
 
-def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities):
-    # This logic assumes r, name_map, and market_data are passed in
+def process_recipe(r, name_map, market_data):
+    best_result = None
+    best_profit = -999999999
+    # --- OUTPUT DATA ---
     out_key = normalize_for_api(r['output'])
     out_data = market_data.get(out_key, {})
     
-    # Get revenue based on your requirements
-    revenue, out_hours = get_best_price(out_data, max_age)
+    revenue, out_hours = get_best_price(out_data, MAX_AGE)
     
-    if revenue is None:
+    if revenue is None: # Means no data was found <= MAX_AGE
         return None
 
+    for craft_city in CRAFT_CITIES:
+        for sell_city in SELL_CITIES:
+            is_refining = (CRAFT_TYPE == "refine")
+            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
+            
+            # --- OUTPUT DATA DETERMINATION ---
+            out_data = market_data.get(r['output'], {}).get(sell_city, {})
+            out_live_age = get_hours_ago(out_data.get('date', 'N/A'))
+            
+            if out_live_age <= 24:
+                revenue = out_data.get('price', 0)
+                final_out_age = out_live_age
+            else:
+                revenue = out_data.get('hist_price', 0)
+                final_out_age = 24 # Historical data represents the last 24h window
+            
+            # --- HARD FILTER: OUT ---
+            if revenue <= 0 or final_out_age > MAX_AGE: continue
     # --- INPUT DATA ---
     total_mat_cost = 0.0
     max_mat_hours = 0
     material_details = []
+    
     current_return_rate = FOCUS_RETURN_RATE if USE_FOCUS else BASE_RETURN_RATE
 
+            # --- INPUT DATA DETERMINATION ---
+            total_mat_cost = 0.0
+            max_mat_hours = 0
+            possible_inputs = True
+            
+            for i in r['inputs']:
+                mat_data = market_data.get(i['id'], {}).get(craft_city, {})
+                mat_live_age = get_hours_ago(mat_data.get('date', 'N/A'))
+                
+                if mat_live_age <= 24:
+                    price = mat_data.get('price', 0)
+                    age = mat_live_age
+                else:
+                    price = mat_data.get('hist_price', 0)
+                    age = 24
+                
+                # --- HARD FILTER: INPUT ---
+                if price <= 0 or age > MAX_AGE:
+                    possible_inputs = False
+                    break
+                
+                max_mat_hours = max(max_mat_hours, age)
+                modifier = 1.0 if i.get('ignore_return') else (1 - current_return)
+                total_mat_cost += (price * i['count'] * modifier)
+            
+            if not possible_inputs: continue
     for i in r['inputs']:
         mat_id = normalize_for_api(i['id'])
         mat_name = name_map.get(i['id'], i['id'])
         mat_data = market_data.get(mat_id, {})
         
-        price, age = get_best_price(mat_data, max_age)
+        price, age = get_best_price(mat_data, MAX_AGE)
         
-        # If any ingredient is missing or too old, discard the whole recipe
-        if price is None:
+        if price is None: # Means an input was too old
             return None
         
         ignore_return = i.get('ignore_return', False)
         modifier = 1.0 if ignore_return else (1 - current_return_rate)
         total_mat_cost += (price * i['count'] * modifier)
+
+            # --- CALCULATIONS ---
+            station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0)
+            total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee
+            gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX))
+            
+            profit = gross_rev - total_cost
+            pct = (profit / total_cost * 100) if total_cost > 0 else 0
+            
+            if pct < MIN_MARGIN or pct > IGNORE_MARGIN: continue
+            if out_data.get('volume', 0) < MIN_DAILY_VOLUME: continue
+            
+            if profit > best_profit:
+                best_profit = profit
+                focus_cost = int(r.get("focus_cost", 0) * (0.5 ** (FOCUS_EFFICIENCY / 10000)))
+                out_tier = get_tier(r['output'])
+                out_name = name_map.get(get_base_name(r['output']), r['output'])
+                
+                if r.get("category") == "rock":
+                    input_ench = 0
+                    for inp in r['inputs']:
+                        match = re.search(r"@([1-4])", inp['id'])
+                        if match: input_ench = max(input_ench, int(match.group(1)))
+                    if input_ench > 0: out_tier = f"{out_tier.split('.')[0]}.{input_ench}"
+
+                best_result = {
+                    "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name,
+                    "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev),
+                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit),
+                    "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0,
+                    "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0),
+                    "Item Age": format_age(final_out_age), "Mat Age": format_age(max_mat_hours),
+                    "Return Rate": f"{current_return:.1%}"
+                }
+    return best_result
         max_mat_hours = max(max_mat_hours, age)
         material_details.append(f"{mat_name} ({i['count']}x @ {int(price):,})")
 
     # --- CALCULATIONS ---
     nutrition_used = (r.get("item_value", 0) * r.get("yield", 1)) * 0.1125
     station_fee = nutrition_used * (STATION_COST / 100.0)
-    
+
     base_foc = int(r.get("focus_cost", 0))
     real_foc_cost = base_foc * (0.5 ** (FOCUS_EFFICIENCY_LEVEL / 10000))
     focus_cost = int(real_foc_cost * r.get("yield", 1))
@@ -327,25 +401,33 @@ def process_recipe(r, name_map, market_data, max_age, craft_type, craft_cities):
     total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee
     gross_revenue = (revenue * r.get("yield", 1) * (1 - MARKET_TAX))
     
+    # Calculate historical revenue for display using standard history if possible
+    # (Optional: If you want 'Price (24h)' column to match the logic, you can use the hist_price directly)
+    hist_revenue = (out_data.get('hist_price', 0) * r.get("yield", 1) * (1 - MARKET_TAX))
+    
     profit = gross_revenue - total_cost
     pct = (profit / total_cost * 100) if total_cost > 0 else 0
     s_f = (profit / focus_cost) if (focus_cost > 0 and USE_FOCUS) else 0
 
-    # Filters
-    if pct < MIN_MARGIN or pct > IGNORE_MARGIN: return None
-    if not SHOW_NEGATIVE and profit < 0: return None
-    if out_data.get('volume', 0) < MIN_DAILY_VOLUME: return None
+    if pct < MIN_MARGIN or pct > IGNORE_MARGIN:
+        return None
+    if not SHOW_NEGATIVE and profit < 0:
+        return None
+
+    vol = out_data.get('volume', 0)
+    if vol < MIN_DAILY_VOLUME:
+        return None
 
     return {
         "name": name_map.get(r['output'], r['output']),
         "cost": int(total_cost),
         "station_fee": int(station_fee),
         "price": int(gross_revenue), 
-        "hist_price": int(out_data.get('hist_price', 0)),
+        "hist_price": int(hist_revenue),
         "focus": focus_cost,
         "s_f": s_f,
         "pct": pct,
-        "vol": out_data.get('volume', 0),
+        "vol": vol,
         "out_age": format_age(out_hours),
         "mat_age": format_age(max_mat_hours),
         "materials": material_details
@@ -358,12 +440,12 @@ if st.button("Click to Calculate", use_container_width=True):
     if not CRAFT_CITIES or not SELL_CITIES: 
         st.error("Please select at least one Craft city and one Sell city.") 
         st.stop() 
-        
+
     try: 
         with open("items.json", "r", encoding="utf-8") as f: 
             raw_items = json.load(f) 
             root = raw_items.get("items", {}) if isinstance(raw_items, dict) else {} 
-            
+
         with open("formattedItems.json", "r", encoding="utf-8") as f: 
             name_data = json.load(f) 
             name_lookup = {} 
@@ -384,7 +466,7 @@ if st.button("Click to Calculate", use_container_width=True):
 
     recipes = [] 
     name_map = {} 
-    
+
     for cat, items in root.items(): 
         if not isinstance(items, list): continue 
         for item in items: 
@@ -393,18 +475,18 @@ if st.button("Click to Calculate", use_container_width=True):
             if not u_name: continue 
             base_n = get_base_name(u_name)
             if base_n not in name_map: name_map[base_n] = name_lookup.get(base_n, u_name)
-            
+
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
             is_match = (subcat == "refinedresources") if CRAFT_TYPE == "refine" else (cat_tag == CRAFT_TYPE)
             if not is_match: continue
-            
+
             tier_match = re.match(r"T([1-8])_", u_name) 
             if tier_match and int(tier_match.group(1)) not in ALLOWED_TIERS: continue 
-            
+
             base_val = float(item.get("@itemvalue", 0)) 
             reqs = to_list(item.get("craftingrequirements")) 
-            
+
             def add_recipe(c, output, val, category): 
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 if CRAFT_TYPE == "refine":
@@ -430,11 +512,11 @@ if st.button("Click to Calculate", use_container_width=True):
         market_data = fetch_market_data(lookup_ids) 
     st.session_state.name_map = name_map 
     st.session_state.market_data = market_data 
-    
+
     with ThreadPoolExecutor(max_workers=THREADS) as executor:
         futures = [executor.submit(process_recipe, r, name_map, market_data) for r in recipes]
         results = [f.result() for f in futures if f.result()]
-        
+
     st.session_state.df = pd.DataFrame(results) 
 
 if st.session_state.df is not None and not st.session_state.df.empty: 
@@ -451,11 +533,11 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     if SHOW_ITEM_AGE: cols.append("Item Age")
     if SHOW_MAT_AGE: cols.append("Mat Age")
     if SHOW_RRR: cols.append("Return Rate") 
-    
+
     display_df = df[cols].copy()
     sort_col = "S/F" if USE_FOCUS else "Profit Margin%"
     if sort_col in display_df.columns: display_df = display_df.sort_values(by=sort_col, ascending=False) 
-    
+
     col_config = {
         "Tier": st.column_config.TextColumn("Tier", alignment="center"),
         "Name": st.column_config.TextColumn("Name", alignment="center"),
@@ -473,10 +555,10 @@ if st.session_state.df is not None and not st.session_state.df.empty:
         "Mat Age": st.column_config.TextColumn("Mat Age", alignment="center"),
         "Return Rate": st.column_config.TextColumn("Return Rate", alignment="center"),
     }
-    
+
     num_rows = len(display_df)
     table_height = (num_rows + 1) * 35 
-    
+
     st.dataframe(display_df, use_container_width=True, hide_index=True, column_config=col_config, height=min(table_height, 800)) 
     st.subheader("Recipes") 
     search_term = st.text_input("Search for a recipe name:", placeholder="Type name to filter...") 
