@@ -295,23 +295,37 @@ def process_recipe(r, name_map, market_data):
         for sell_city in SELL_CITIES:
             is_refining = (CRAFT_TYPE == "refine")
             
-            current_return = get_rrr(craft_city, r.get("category", ""), USE_FOCUS, is_refining)
+            # --- NEW: Calculate both RRR scenarios ---
+            return_focus = get_rrr(craft_city, r.get("category", ""), True, is_refining)
+            return_no_focus = get_rrr(craft_city, r.get("category", ""), False, is_refining)
+            current_return = return_focus if USE_FOCUS else return_no_focus
             
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
             
             revenue, out_hours = get_active_price(out_data, MAX_AGE)
             
+            # --- NEW: Track costs for focus and no-focus ---
             total_mat_cost = 0.0 
+            total_mat_cost_focus = 0.0
+            total_mat_cost_no_focus = 0.0
             max_mat_hours = 0 
+            
             for i in r['inputs']: 
                 mat_id = i['id'] 
                 mat_data = market_data.get(mat_id, {}).get(craft_city, {}) 
                 price, mat_hours = get_active_price(mat_data, MAX_AGE)
                 
                 max_mat_hours = max(max_mat_hours, mat_hours) 
-                modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
-                total_mat_cost += (price * i['count'] * modifier) 
+                
+                # Apply 1.0 (no return) if maxreturnamount == "0", otherwise apply RRR discount
+                modifier_actual = 1.0 if i.get('ignore_return') else (1 - current_return)
+                modifier_focus = 1.0 if i.get('ignore_return') else (1 - return_focus)
+                modifier_no_focus = 1.0 if i.get('ignore_return') else (1 - return_no_focus)
+                
+                total_mat_cost += (price * i['count'] * modifier_actual) 
+                total_mat_cost_focus += (price * i['count'] * modifier_focus) 
+                total_mat_cost_no_focus += (price * i['count'] * modifier_no_focus) 
             
             if out_hours > MAX_AGE or max_mat_hours > MAX_AGE: continue 
             
@@ -328,11 +342,13 @@ def process_recipe(r, name_map, market_data):
             if profit > best_profit: 
                 best_profit = profit 
                 
-                # --- CORRECTED FOCUS CALCULATION ---
-                # Multiply the API's base focus cost by the yield batch to find the true starting focus
                 base_batch_focus = r.get("focus_cost", 0) * r.get("yield", 1)
                 focus_cost = int(base_batch_focus * (0.5 ** (FOCUS_EFFICIENCY / 10000))) 
-                # -----------------------------------
+                
+                # --- NEW: Calculate True Focus Value ---
+                # The extra silver made strictly from using focus
+                focus_savings = total_mat_cost_no_focus - total_mat_cost_focus
+                actual_s_per_f = int(focus_savings / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0
                 
                 out_tier = get_tier(r['output'])
                 out_name = name_map.get(get_base_name(r['output']), r['output'])
@@ -349,11 +365,12 @@ def process_recipe(r, name_map, market_data):
                 best_result = { 
                     "Craft City": craft_city, "Sell City": sell_city, "Tier": out_tier, "Name": out_name, 
                     "Inputs": r['inputs'], "Mat Cost": int(total_cost), "Sell Price": int(gross_rev), "Avg Price (24h)": int(avg_rev),
-                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), "S/F": int(profit / focus_cost) if (USE_FOCUS and focus_cost > 0) else 0, 
+                    "Profit Margin%": round(pct, 1), "Profit (Silver)": int(profit), 
+                    "S/F": actual_s_per_f, # <-- Updated here
                     "Focus": focus_cost, "Vol Sold (24h)": out_data.get('volume', 0), "Item Age": format_age(out_hours), "Mat Age": format_age(max_mat_hours),
                     "Return Rate": f"{current_return:.1%}"
                 } 
-    return best_result 
+    return best_result
 
 # ================= MAIN ================= 
 st.markdown("<h1 style='text-align: center;'>Albion Crafting Profit Calculator</h1>", unsafe_allow_html=True) 
