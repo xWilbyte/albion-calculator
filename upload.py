@@ -107,9 +107,10 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining"], key="craft_type")
+    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts"], key="craft_type")
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
     elif ui_choice == "Refining": CRAFT_TYPE = "refine"
+    elif ui_choice == "Mounts": CRAFT_TYPE = "mount"
     else: CRAFT_TYPE = "food"
 
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -399,7 +400,15 @@ if st.button("Click to Calculate", use_container_width=True):
             
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
-            is_match = (subcat == "refinedresources") if CRAFT_TYPE == "refine" else (cat_tag == CRAFT_TYPE)
+            slottype = item.get("@slottype", "").lower()
+            
+            if CRAFT_TYPE == "refine":
+                is_match = (subcat == "refinedresources")
+            elif CRAFT_TYPE == "mount":
+                is_match = (slottype == "mount")
+            else:
+                is_match = (cat_tag == CRAFT_TYPE)
+            
             if not is_match: continue
             
             tier_match = re.match(r"T([1-8])_", u_name) 
@@ -421,7 +430,7 @@ if st.button("Click to Calculate", use_container_width=True):
             for c in reqs: 
                 if c: add_recipe(c, u_name, base_val, cat_tag) 
             enchant = item.get("enchantments") 
-            if enchant: 
+            if enchant and CRAFT_TYPE != "mount": 
                 for ench in to_list(enchant.get("enchantment")): 
                     lvl = int(ench.get("@enchantmentlevel", 0)) 
                     ench_output = f"{u_name}_LEVEL{lvl}" 
