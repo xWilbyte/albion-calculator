@@ -36,7 +36,6 @@ def get_rrr(city, category, use_focus, is_refining):
         if use_focus:
             return 0.479 if is_bonus_city else 0.435
         else:
-            # Corrected: 24.8% for Crafting + Bonus (No Focus)
             return 0.248 if is_bonus_city else 0.153
 
 # ================= RESET FUNCTION =================
@@ -161,23 +160,21 @@ limiter = RateLimiter(1/150)
 
 # ================= UTILS ================= 
 
-def normalize_id(id_str, category="refine"):
+def normalize_id(id_str):
     if not id_str: return id_str
     if "@" in id_str: return id_str
     
-    # Updated: Include all refined resource types so they all get the correct API format
-    refined_categories = ["hide", "rock", "fiber", "wood", "ore", "refine"]
-    
-    if category.lower() in refined_categories:
-        # Keeps _LEVEL1 and adds @1 resulting in T4_ROCK_LEVEL1@1
+    # Both raw and refined resources use the _LEVELX@X format in the API
+    resource_kws = ["_WOOD", "_PLANKS", "_ORE", "_METALBAR", "_FIBER", "_CLOTH", "_HIDE", "_LEATHER", "_ROCK", "_STONEBLOCK"]
+    if any(kw in id_str for kw in resource_kws):
         return re.sub(r"_LEVEL(\d+)", r"\g<0>@\1", id_str)
     else:
-        # Fallback for non-refined items (Potions/Food)
+        # Gear, weapons, food, and potions drop the _LEVEL prefix
         return re.sub(r"_LEVEL(\d+)", r"@\1", id_str)
 
-def get_id(r, category="refine"):
+def get_id(r):
     if isinstance(r, dict):
-        return normalize_id(r.get("@uniquename"), category)
+        return normalize_id(r.get("@uniquename"))
     return ""
 
 def get_base_name(id_str):
@@ -199,7 +196,7 @@ def get_hours_ago(date_str):
     if not date_str or date_str == "N/A" or date_str.startswith("0001-01-01"): 
         return 999 
     try: 
-        # Strip trailing 'Z' and fractional seconds that break strptime
+        # Strip trailing 'Z' and fractional seconds
         clean_date = date_str.split('.')[0].replace("Z", "")
         dt = datetime.strptime(clean_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc) 
         diff = datetime.now(timezone.utc) - dt 
@@ -210,6 +207,30 @@ def get_hours_ago(date_str):
 def format_age(hours):
     if hours >= 999: return "N/A"
     return f"{hours}h"
+
+def get_active_price(item_data, max_age):
+    """
+    Safely determines whether to use live or historical price based on MAX_AGE.
+    Returns (price_to_use, actual_age_of_that_price)
+    """
+    live_price = item_data.get('price', 0)
+    live_age = get_hours_ago(item_data.get('date', 'N/A'))
+    
+    hist_price = item_data.get('hist_price', 0)
+    hist_age = get_hours_ago(item_data.get('hist_date', 'N/A'))
+
+    # Prefer live price if valid and within max_age
+    if live_price > 0 and live_age <= max_age:
+        return live_price, live_age
+        
+    # Fallback to history if live is stale or missing
+    if hist_price > 0 and hist_age <= max_age:
+        return hist_price, hist_age
+        
+    # If both are stale/missing, return whichever is newer (will likely be filtered out later)
+    if live_age <= hist_age:
+        return live_price, live_age
+    return hist_price, hist_age
 
 # ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
@@ -231,16 +252,18 @@ def fetch_market_data(ids):
                     city = row.get("city") 
                     price = row.get("sell_price_min", 0) 
                     if item_id not in data_map: data_map[item_id] = {} 
-                    if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
+                    if city not in data_map[item_id]: 
+                        data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
                     if price > 0: 
                         data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
         except: continue 
      
-    # --- 2. FETCH HISTORY (AND UPDATE MISSING DATES) ---
+    # --- 2. FETCH HISTORY ---
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
-        url = f"{HISTORY_URL}{','.join(chunk)}.json?locations={city_param}&time-scale=24" 
+        # FIX: Removed the erroneous ".json" that broke multi-item batching
+        url = f"{HISTORY_URL}{','.join(chunk)}?locations={city_param}&time-scale=24" 
         try: 
             r = requests.get(url, timeout=30) 
             if r.status_code == 200: 
@@ -252,8 +275,10 @@ def fetch_market_data(ids):
                             item_id = entry.get("item_id") 
                             data_points = entry.get("data", []) 
                             if not data_points or not item_id: continue 
+                            
                             if item_id not in data_map: data_map[item_id] = {} 
-                            if city not in data_map[item_id]: data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'volume': 0} 
+                            if city not in data_map[item_id]: 
+                                data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
                             
                             recent_data = data_points[-30:] 
                             avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
@@ -261,14 +286,9 @@ def fetch_market_data(ids):
                             
                             update_dict = {
                                 'volume': int(avg_vol), 
-                                'hist_price': most_recent.get("avg_price", 0)
+                                'hist_price': most_recent.get("avg_price", 0),
+                                'hist_date': most_recent.get("timestamp", 'N/A') # FIX: Explicitly track history age
                             } 
-                            
-                            # THE FIX: Inject the history timestamp if the live date is missing/invalid
-                            current_date = data_map[item_id][city].get('date', 'N/A')
-                            if current_date == 'N/A' or current_date.startswith("0001-01-01"):
-                                update_dict['date'] = most_recent.get("timestamp", 'N/A')
-                            
                             data_map[item_id][city].update(update_dict) 
         except: continue 
         
@@ -288,20 +308,23 @@ def process_recipe(r, name_map, market_data):
             
             out_key = r['output']
             out_data = market_data.get(out_key, {}).get(sell_city, {}) 
-            revenue = out_data.get('price', 0) if (out_data.get('date') != 'N/A' and get_hours_ago(out_data.get('date')) <= MAX_AGE) else out_data.get('hist_price', 0) 
-            out_hours = get_hours_ago(out_data.get('date', 'N/A')) 
+            
+            # FIX: Safely retrieve active price and its correct corresponding age
+            revenue, out_hours = get_active_price(out_data, MAX_AGE)
             
             total_mat_cost = 0.0 
             max_mat_hours = 0 
             for i in r['inputs']: 
                 mat_id = i['id'] 
                 mat_data = market_data.get(mat_id, {}).get(craft_city, {}) 
-                price = mat_data.get('price', 0) if (mat_data.get('date') != 'N/A' and get_hours_ago(mat_data.get('date')) <= MAX_AGE) else mat_data.get('hist_price', 0) 
-                max_mat_hours = max(max_mat_hours, get_hours_ago(mat_data.get('date', 'N/A'))) 
+                price, mat_hours = get_active_price(mat_data, MAX_AGE)
+                
+                max_mat_hours = max(max_mat_hours, mat_hours) 
                 modifier = 1.0 if i.get('ignore_return') else (1 - current_return) 
                 total_mat_cost += (price * i['count'] * modifier) 
             
             if out_hours > MAX_AGE or max_mat_hours > MAX_AGE: continue 
+            
             station_fee = ((r.get("item_value", 0) * r.get("yield", 1)) * 0.1125) * (STATION_COST / 100.0) 
             total_cost = total_mat_cost + r.get("silver_cost", 0) + station_fee 
             gross_rev = (revenue * r.get("yield", 1) * (1 - MARKET_TAX)) 
@@ -395,11 +418,11 @@ if st.button("Click to Calculate", use_container_width=True):
                 raw_res = to_list(c.get("craftresource") or c.get("resources") or c.get("craftingresource") or []) 
                 if CRAFT_TYPE == "refine":
                     for r in raw_res:
-                        if "FACTION" in get_id(r, category).upper(): return 
+                        if "FACTION" in get_id(r).upper(): return 
 
-                inputs = [{"id": get_id(r, category), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r, category)] 
+                inputs = [{"id": get_id(r), "count": int(r.get("@count", 1)), "ignore_return": r.get("@maxreturnamount") == "0"} for r in raw_res if get_id(r)] 
                 if inputs: 
-                    recipes.append({"output": normalize_id(output, category), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
+                    recipes.append({"output": normalize_id(output), "category": category, "inputs": inputs, "silver_cost": int(c.get("@silver", 0)), "yield": int(c.get("@amountcrafted", 1)), "focus_cost": int(c.get("@craftingfocus", 0)), "item_value": val}) 
 
             for c in reqs: 
                 if c: add_recipe(c, u_name, base_val, cat_tag) 
@@ -473,7 +496,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                 for item in row['Inputs']: 
                     mat_id = item['id'] 
                     m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
-                    price = m_data.get('price', 0) if (m_data.get('date') != 'N/A' and get_hours_ago(m_data.get('date')) <= MAX_AGE) else m_data.get('hist_price', 0) 
+                    price, _ = get_active_price(m_data, MAX_AGE) 
                     mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(get_base_name(mat_id), mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
                 st.table(pd.DataFrame(mat_data)) 
 
