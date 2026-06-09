@@ -111,11 +111,12 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts", "Capes"], key="craft_type")
+    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts", "Capes", "Headgear"], key="craft_type")
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
     elif ui_choice == "Refining": CRAFT_TYPE = "refine"
     elif ui_choice == "Mounts": CRAFT_TYPE = "mount"
     elif ui_choice == "Capes": CRAFT_TYPE = "cape"
+    elif ui_choice == "Headgear": CRAFT_TYPE = "headgear"
     else: CRAFT_TYPE = "food"
 
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -236,7 +237,6 @@ def get_active_price(item_data, max_age):
         return live_price, live_age
     return hist_price, hist_age
 
-# ================= MARKET FETCH ================= 
 # ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
     data_map = {} 
@@ -473,6 +473,7 @@ if st.button("Click to Calculate", use_container_width=True):
             cat_tag = item.get("@craftingcategory", "").lower()
             subcat = item.get("@shopsubcategory1", "").lower()
             slottype = item.get("@slottype", "").lower()
+            shopcat = item.get("@shopcategory", "").lower()
             
             if CRAFT_TYPE == "refine":
                 is_match = (subcat == "refinedresources")
@@ -480,6 +481,8 @@ if st.button("Click to Calculate", use_container_width=True):
                 is_match = (slottype == "mount")
             elif CRAFT_TYPE == "cape":
                 is_match = (slottype == "cape")
+            elif CRAFT_TYPE == "headgear":
+                is_match = (shopcat == "head")
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
             
