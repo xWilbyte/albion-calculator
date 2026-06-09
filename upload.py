@@ -136,12 +136,12 @@ with st.sidebar.expander("Filters"):
 with st.sidebar.expander("Display Options"):
     SHOW_MAT_COST = st.checkbox("Show Mat Cost", value=True, key="show_mat_cost") 
     SHOW_SELL_PRICE = st.checkbox("Show Sell Price", value=True, key="show_sell_price") 
-    SHOW_PROFIT_MARGIN = st.checkbox("Show Profit Margin %", value=True, key="show_profit_margin") 
-    SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False, key="show_mat_age") 
-    SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False, key="show_item_age") 
-    SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True, key="show_vol") 
     SHOW_AVG_PRICE = st.checkbox("Show Avg Price (24h)", value=False, key="show_avg_price") 
+    SHOW_PROFIT_MARGIN = st.checkbox("Show Profit Margin %", value=True, key="show_profit_margin") 
     SHOW_PROFIT = st.checkbox("Show Profit (Silver)", value=False, key="show_profit") 
+    SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True, key="show_vol") 
+    SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False, key="show_item_age") 
+    SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False, key="show_mat_age") 
     SHOW_RRR = st.checkbox("Show Return Rate", value=False, key="show_rrr")
     SHOW_STATION_COST = st.checkbox("Show Station Cost", value=False, key="show_station_cost")
 
