@@ -558,15 +558,26 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     st.dataframe(display_df, use_container_width=True, hide_index=True, column_config=col_config, height=min(table_height, 800)) 
     st.subheader("Recipes") 
     search_term = st.text_input("Search for a recipe name:", placeholder="Type name to filter...") 
-    for _, row in df.iterrows(): 
+    for idx, row in df.iterrows(): 
         if search_term.lower() in row['Name'].lower(): 
             with st.expander(f"Recipe: {row['Name']} (Tier {row['Tier']})"): 
+                batch_qty = st.number_input("Quantity", min_value=1, value=1, step=1, key=f"qty_{idx}")
                 mat_data = [] 
                 for item in row['Inputs']: 
                     mat_id = item['id'] 
                     m_data = st.session_state.market_data.get(mat_id, {}).get(row['Craft City'], {}) 
                     price, _ = get_active_price(m_data, MAX_AGE) 
-                    mat_data.append({"Tier": get_tier(mat_id), "Material": st.session_state.name_map.get(get_base_name(mat_id), mat_id), "Unit Cost": f"{int(price):,}", "Quantity": item['count'], "Total Material Cost": f"{int(price * item['count']):,}"}) 
+                    
+                    adjusted_qty = item['count'] * batch_qty
+                    total_cost = int(price * adjusted_qty)
+                    
+                    mat_data.append({
+                        "Tier": get_tier(mat_id), 
+                        "Material": st.session_state.name_map.get(get_base_name(mat_id), mat_id), 
+                        "Unit Cost": f"{int(price):,}", 
+                        "Quantity": adjusted_qty, 
+                        "Total Material Cost": f"{total_cost:,}"
+                    }) 
                 st.table(pd.DataFrame(mat_data)) 
 
 elif st.session_state.df is not None and st.session_state.df.empty: 
