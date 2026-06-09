@@ -1,12 +1,12 @@
-import streamlit as st 
-import json 
-import re 
-import time 
-import requests 
-import threading 
-import pandas as pd 
-from datetime import datetime, timezone 
-from concurrent.futures import ThreadPoolExecutor 
+import streamlit as st
+import json
+import re
+import time
+import requests
+import threading
+import pandas as pd
+from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 
 # ================= MAPPING FOR RRR =================
 RRR_BONUS_MAP = {
@@ -51,6 +51,9 @@ def reset_defaults():
     st.session_state['allowed_tiers'] = [1, 2, 3, 4, 5, 6, 7, 8]
     st.session_state['max_age'] = 48
     st.session_state['ignore_margin'] = 1000.0
+    st.session_state['show_mat_cost'] = True
+    st.session_state['show_sell_price'] = True
+    st.session_state['show_profit_margin'] = True
     st.session_state['show_mat_age'] = False
     st.session_state['show_item_age'] = False
     st.session_state['show_vol'] = True
@@ -131,6 +134,9 @@ with st.sidebar.expander("Filters"):
     IGNORE_MARGIN = st.number_input("Ignore Margin > %", value=1000.0, key="ignore_margin") 
 
 with st.sidebar.expander("Display Options"):
+    SHOW_MAT_COST = st.checkbox("Show Mat Cost", value=True, key="show_mat_cost") 
+    SHOW_SELL_PRICE = st.checkbox("Show Sell Price", value=True, key="show_sell_price") 
+    SHOW_PROFIT_MARGIN = st.checkbox("Show Profit Margin %", value=True, key="show_profit_margin") 
     SHOW_MAT_AGE = st.checkbox("Show Mat Age", value=False, key="show_mat_age") 
     SHOW_ITEM_AGE = st.checkbox("Show Item Age", value=False, key="show_item_age") 
     SHOW_VOL = st.checkbox("Show Vol Sold (24h)", value=True, key="show_vol") 
@@ -511,9 +517,10 @@ if st.session_state.df is not None and not st.session_state.df.empty:
     cols = ["Tier", "Name"]
     if len(CRAFT_CITIES) > 1: cols.append("Craft City")
     if len(SELL_CITIES) > 1: cols.append("Sell City")
-    cols.extend(["Mat Cost", "Sell Price"])
+    if SHOW_MAT_COST: cols.append("Mat Cost")
+    if SHOW_SELL_PRICE: cols.append("Sell Price")
     if SHOW_AVG_PRICE: cols.append("Avg Price (24h)")
-    cols.append("Profit Margin%")
+    if SHOW_PROFIT_MARGIN: cols.append("Profit Margin%")
     if SHOW_PROFIT: cols.append("Profit (Silver)")
     if USE_FOCUS: cols.extend(["S/F", "Focus"])
     if SHOW_VOL: cols.append("Vol Sold (24h)")
