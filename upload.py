@@ -111,12 +111,14 @@ st.sidebar.markdown("## Config")
 ALL_CITIES = ["Bridgewatch", "Lymhurst", "Martlock", "Fort Sterling", "Thetford", "Caerleon", "Black Market", "Brecilien"]
 
 with st.sidebar.expander("General Settings", expanded=True):
-    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts", "Capes", "Headgear"], key="craft_type")
+    ui_choice = st.selectbox("Craft Type", ["Potions", "Food", "Refining", "Mounts", "Capes", "Head", "Chest", "Feet"], key="craft_type")
     if ui_choice == "Potions": CRAFT_TYPE = "potion"
     elif ui_choice == "Refining": CRAFT_TYPE = "refine"
     elif ui_choice == "Mounts": CRAFT_TYPE = "mount"
     elif ui_choice == "Capes": CRAFT_TYPE = "cape"
-    elif ui_choice == "Headgear": CRAFT_TYPE = "headgear"
+    elif ui_choice == "Head": CRAFT_TYPE = "head"
+    elif ui_choice == "Chest": CRAFT_TYPE = "chest"
+    elif ui_choice == "Feet": CRAFT_TYPE = "feet"
     else: CRAFT_TYPE = "food"
 
     CRAFT_CITIES = st.multiselect("Craft City", [c for c in ALL_CITIES if c != "Black Market"], default=["Bridgewatch"], key="craft_cities") 
@@ -481,8 +483,12 @@ if st.button("Click to Calculate", use_container_width=True):
                 is_match = (slottype == "mount")
             elif CRAFT_TYPE == "cape":
                 is_match = (slottype == "cape")
-            elif CRAFT_TYPE == "headgear":
+            elif CRAFT_TYPE == "head":
                 is_match = (shopcat == "head")
+            elif CRAFT_TYPE == "chest":
+                is_match = (shopcat == "armors")
+            elif CRAFT_TYPE == "feet":
+                is_match = (shopcat == "shoes")
             else:
                 is_match = (cat_tag == CRAFT_TYPE)
             
