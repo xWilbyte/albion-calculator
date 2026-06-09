@@ -237,61 +237,97 @@ def get_active_price(item_data, max_age):
     return hist_price, hist_age
 
 # ================= MARKET FETCH ================= 
+# ================= MARKET FETCH ================= 
 def fetch_market_data(ids): 
     data_map = {} 
     unique_ids = list(set(ids)) 
     all_cities = list(set(CRAFT_CITIES + SELL_CITIES))
     city_param = ",".join(all_cities) 
+    
+    # Request Gzip compression as asked by the API
+    headers = {'Accept-Encoding': 'gzip'}
       
+    # 1. Fetch Current Prices
     for i in range(0, len(unique_ids), BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + BATCH_SIZE] 
         url = f"{API_URL}{','.join(chunk)}?locations={city_param}" 
+        
+        # Alert if URL is getting too close to the 4096 limit
+        if len(url) > 4000:
+            st.warning(f"URL length is {len(url)} chars. It might exceed the 4096 limit. Lower your BATCH_SIZE.")
+
         try: 
-            r = requests.get(url, timeout=30) 
-            if r.status_code == 200: 
-                for row in r.json(): 
-                    item_id = row.get("item_id") 
-                    city = row.get("city") 
-                    price = row.get("sell_price_min", 0) 
-                    if item_id not in data_map: data_map[item_id] = {} 
-                    if city not in data_map[item_id]: 
-                        data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
-                    if price > 0: 
-                        data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
-        except: continue 
+            r = requests.get(url, headers=headers, timeout=30) 
+            
+            # Catch Rate Limits explicitly
+            if r.status_code == 429:
+                st.error("Rate limit hit! Waiting 10 seconds...")
+                time.sleep(10)
+                continue
+            elif r.status_code != 200:
+                st.warning(f"Price fetch error: HTTP {r.status_code}")
+                continue
+
+            for row in r.json(): 
+                item_id = row.get("item_id") 
+                city = row.get("city") 
+                price = row.get("sell_price_min", 0) 
+                if item_id not in data_map: data_map[item_id] = {} 
+                if city not in data_map[item_id]: 
+                    data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
+                if price > 0: 
+                    data_map[item_id][city].update({'price': price, 'date': row.get('sell_price_min_date', 'N/A')}) 
+        except Exception as e: 
+            st.error(f"Price connection error: {e}")
+            continue 
       
+    # 2. Fetch History Data
     for i in range(0, len(unique_ids), HIST_BATCH_SIZE): 
         limiter.wait() 
         chunk = unique_ids[i : i + HIST_BATCH_SIZE] 
         url = f"{HISTORY_URL}{','.join(chunk)}?locations={city_param}&time-scale=24" 
+        
+        if len(url) > 4000:
+            st.warning(f"History URL length is {len(url)} chars. Consider lowering HIST_BATCH_SIZE.")
+
         try: 
-            r = requests.get(url, timeout=30) 
-            if r.status_code == 200: 
-                resp = r.json() 
-                if isinstance(resp, list): 
-                    for entry in resp: 
-                        city = entry.get("location") 
-                        if city in all_cities: 
-                            item_id = entry.get("item_id") 
-                            data_points = entry.get("data", []) 
-                            if not data_points or not item_id: continue 
-                            
-                            if item_id not in data_map: data_map[item_id] = {} 
-                            if city not in data_map[item_id]: 
-                                data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
-                            
-                            recent_data = data_points[-30:] 
-                            avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
-                            most_recent = data_points[-1] 
-                            
-                            update_dict = {
-                                'volume': int(avg_vol), 
-                                'hist_price': most_recent.get("avg_price", 0),
-                                'hist_date': most_recent.get("timestamp", 'N/A')
-                            } 
-                            data_map[item_id][city].update(update_dict) 
-        except: continue 
+            r = requests.get(url, headers=headers, timeout=30) 
+            
+            if r.status_code == 429:
+                st.error("Rate limit hit on history! Waiting 10 seconds...")
+                time.sleep(10)
+                continue
+            elif r.status_code != 200:
+                st.warning(f"History fetch error: HTTP {r.status_code}")
+                continue
+
+            resp = r.json() 
+            if isinstance(resp, list): 
+                for entry in resp: 
+                    city = entry.get("location") 
+                    if city in all_cities: 
+                        item_id = entry.get("item_id") 
+                        data_points = entry.get("data", []) 
+                        if not data_points or not item_id: continue 
+                        
+                        if item_id not in data_map: data_map[item_id] = {} 
+                        if city not in data_map[item_id]: 
+                            data_map[item_id][city] = {'price': 0, 'date': 'N/A', 'hist_price': 0, 'hist_date': 'N/A', 'volume': 0} 
+                        
+                        recent_data = data_points[-30:] 
+                        avg_vol = sum(d.get("item_count", 0) for d in recent_data) / len(recent_data) 
+                        most_recent = data_points[-1] 
+                        
+                        update_dict = {
+                            'volume': int(avg_vol), 
+                            'hist_price': most_recent.get("avg_price", 0),
+                            'hist_date': most_recent.get("timestamp", 'N/A')
+                        } 
+                        data_map[item_id][city].update(update_dict) 
+        except Exception as e: 
+            st.error(f"History connection error: {e}")
+            continue 
         
     return data_map
 
